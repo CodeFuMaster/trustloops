@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: trustloops
+      POSTGRES_USER: trustloops
+      POSTGRES_PASSWORD: trustloops123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - trustloops-network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - trustloops-network
+
+  web:
+    build:
+      context: .
+      dockerfile: src/WebApp/Dockerfile
+    ports:
+      - "5000:80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Host=postgres;Database=trustloops;Username=trustloops;Password=trustloops123
+      - Supabase__Url=https://your-project.supabase.co
+      - Supabase__AnonKey=your-anon-key
+      - Supabase__JwtSecret=your-jwt-secret
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - trustloops-network
+
+volumes:
+  postgres_data:
+
+networks:
+  trustloops-network:
+    driver: bridge

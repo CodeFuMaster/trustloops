@@ -1,0 +1,5 @@
+packages:
+  - "apps/*"
+  - "src/*"
+  - "tests/*"
+  # add more globs if you create extra folders
