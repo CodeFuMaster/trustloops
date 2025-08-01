@@ -2,6 +2,8 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Infrastructure.Services;
+using TrustLoops.Infrastructure.Services;
+using Supabase;
 
 namespace Infrastructure.Extensions;
 
@@ -11,6 +13,39 @@ public static class ServiceCollectionExtensions
     {
         // Register Supabase client wrapper (simplified for testing)
         services.AddScoped<ISupabaseClientWrapper, SupabaseClientWrapper>();
+        
+        // Register new Supabase client - re-enabled with proper error handling
+        var supabaseUrl = configuration["Supabase:Url"];
+        var supabaseKey = configuration["Supabase:ServiceKey"];
+        
+        if (!string.IsNullOrEmpty(supabaseUrl) && !string.IsNullOrEmpty(supabaseKey))
+        {
+            try
+            {
+                services.AddScoped<Supabase.Client>(provider => 
+                {
+                    var options = new SupabaseOptions
+                    {
+                        AutoRefreshToken = true,
+                        AutoConnectRealtime = false // Disable realtime for now
+                    };
+                    return new Supabase.Client(supabaseUrl, supabaseKey, options);
+                });
+                
+                services.AddScoped<SupabaseClient>();
+                Console.WriteLine("Supabase client services registered successfully");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Warning: Supabase client registration failed: {ex.Message}");
+                // Fallback - don't register SupabaseClient if there's an issue
+                // This will allow the app to start with just the mock wrapper
+            }
+        }
+        else
+        {
+            Console.WriteLine("Supabase configuration not found, using mock wrapper only");
+        }
 
         return services;
     }
