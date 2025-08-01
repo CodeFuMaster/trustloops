@@ -9,15 +9,15 @@ namespace WebApp.Services;
 public class ProjectService
 {
     private readonly ILogger<ProjectService> _logger;
-    private readonly SupabaseClientWrapper _supabase;
+    private readonly ISupabaseClientWrapper _supabase;
 
-    public ProjectService(ILogger<ProjectService> logger, SupabaseClientWrapper supabase)
+    public ProjectService(ILogger<ProjectService> logger, ISupabaseClientWrapper supabase)
     {
         _logger = logger;
         _supabase = supabase;
     }
 
-    public async Task<Result<Project>> CreateProjectAsync(CreateProjectRequest request)
+    public async Task<Result<Shared.Entities.Project>> CreateProjectAsync(CreateProjectRequest request)
     {
         try
         {
@@ -27,7 +27,7 @@ public class ProjectService
             var slug = GenerateSlug(request.Name);
             
             // Create project entity
-            var project = new Project
+            var project = new Shared.Entities.Project
             {
                 Id = Guid.NewGuid(),
                 Name = request.Name,
@@ -37,11 +37,16 @@ public class ProjectService
                 CreatedUtc = DateTime.UtcNow
             };
 
-            // TODO: Use Supabase to create project when available
-            // For now, return the created project
-            _logger.LogInformation("Created project {ProjectId} with slug {Slug}", project.Id, project.Slug);
+            // Use Supabase to create project
+            var result = await _supabase.CreateProjectAsync(project);
+            if (result.IsFailed)
+            {
+                return Result.Fail($"Failed to create project in database: {result.Errors.FirstOrDefault()?.Message}");
+            }
             
-            return Result.Ok(project);
+            _logger.LogInformation("Created project {ProjectId} with slug {Slug}", result.Value.Id, result.Value.Slug);
+            
+            return Result.Ok(result.Value);
         }
         catch (Exception ex)
         {
@@ -50,25 +55,21 @@ public class ProjectService
         }
     }
 
-    public async Task<Result<List<Project>>> GetUserProjectsAsync(Guid userId)
+    public async Task<Result<List<Shared.Entities.Project>>> GetUserProjectsAsync(Guid userId)
     {
         try
         {
             _logger.LogInformation("Getting projects for user {UserId}", userId);
             
-            // TODO: Use Supabase to get user projects when available
-            // For now, return sample project
-            var sampleProject = new Project
+            // Use Supabase to get user projects
+            var result = await _supabase.GetProjectsAsync(userId);
+            if (result.IsFailed)
             {
-                Id = Guid.Parse("550e8400-e29b-41d4-a716-446655440000"),
-                Name = "Sample Product",
-                Slug = "sample-product",
-                Description = "A sample project for testing testimonials",
-                UserId = userId,
-                CreatedUtc = DateTime.UtcNow.AddDays(-7)
-            };
+                return Result.Fail($"Failed to fetch projects from database: {result.Errors.FirstOrDefault()?.Message}");
+            }
             
-            return Result.Ok(new List<Project> { sampleProject });
+            _logger.LogInformation("Found {ProjectCount} projects for user {UserId}", result.Value.Count, userId);
+            return Result.Ok(result.Value);
         }
         catch (Exception ex)
         {
@@ -87,11 +88,36 @@ public class ProjectService
                   .Trim();
     }
 
-    public async Task<Result<Project>> GetProjectByIdAsync(Guid projectId)
+    public async Task<Result<Shared.Entities.Project>> GetProjectByIdAsync(Guid projectId)
     {
-        // TODO: Implement get project by ID from Supabase
-        _logger.LogInformation("Getting project {ProjectId}", projectId);
-        
-        throw new NotImplementedException("Get project by ID not yet implemented");
+        try
+        {
+            _logger.LogInformation("Getting project {ProjectId}", projectId);
+            
+            // For now, we don't have this method in Supabase wrapper, so return not implemented
+            return Result.Fail("Get project by ID not yet implemented");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get project {ProjectId}", projectId);
+            return Result.Fail($"Failed to get project: {ex.Message}");
+        }
+    }
+
+    public async Task<Result<Shared.Entities.Project>> GetProjectBySlugAsync(string slug)
+    {
+        try
+        {
+            _logger.LogInformation("Getting project by slug {Slug}", slug);
+            
+            // Use Supabase to get project by slug
+            var result = await _supabase.GetProjectBySlugAsync(slug);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get project by slug {Slug}", slug);
+            return Result.Fail($"Failed to get project: {ex.Message}");
+        }
     }
 }

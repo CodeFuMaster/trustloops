@@ -35,6 +35,7 @@ export default function EmbedWall() {
   
   const isEmbedded = searchParams.get('embed') === 'true'
   const theme = searchParams.get('theme') || 'light'
+  const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
   useEffect(() => {
     if (projectSlug) {
@@ -71,30 +72,16 @@ export default function EmbedWall() {
     setError(null)
     
     try {
-      // For now, use the sample project data
-      const sampleProjectId = '550e8400-e29b-41d4-a716-446655440000'
+      const response = await fetch(`${apiBaseUrl}/api/wall/${projectSlug}`)
       
-      if (projectSlug === 'sample-product') {
-        // Mock project data
-        setProject({
-          id: sampleProjectId,
-          name: 'Sample Product',
-          slug: 'sample-product',
-          description: 'A sample project for testing testimonials',
-          userId: '',
-          createdUtc: new Date().toISOString()
-        })
-
-        // Fetch approved testimonials
-        const response = await fetch(`/api/testimonials/${sampleProjectId}?approved=true`)
-        if (response.ok) {
-          const data = await response.json()
-          setTestimonials(data)
-        } else {
-          throw new Error('Failed to fetch testimonials')
-        }
-      } else {
+      if (response.ok) {
+        const data = await response.json()
+        setProject(data.project)
+        setTestimonials(data.testimonials || [])
+      } else if (response.status === 404) {
         setError('Project not found')
+      } else {
+        throw new Error('Failed to fetch wall data')
       }
     } catch (err) {
       console.error('Error fetching wall data:', err)

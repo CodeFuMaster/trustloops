@@ -340,12 +340,22 @@ All **Phase-1 (Tasks 1-6)** and **Phase-2 (Tasks 7-10)** are now **COMPLETE**, p
 - ✅ Comprehensive error handling and loading states
 
 ### Next Steps
+- ✅ **Fixed Testimonial Wall Display**: Resolved View Wall routing issues and added backend endpoints
+- 🚧 **Real Project Persistence**: Currently using mock data - need Supabase integration for actual project storage
+- 🚧 **UI/UX Improvements**: Dashboard needs better state management and user feedback
+- 🚧 **Complete Database Integration**: Move from mock services to full Supabase CRUD operations
 - Multi-tenant project isolation with Row Level Security
 - Advanced testimonial filtering and search capabilities
 - Analytics dashboard with collection and engagement metrics
 - Custom domain support for white-label embedding
 - Advanced theming and customization options
 
+### Current Issues (August 1, 2025)
+- **Project Creation**: Backend creates projects but frontend doesn't show them (mock service only returns sample project)
+- **Data Persistence**: No actual database storage - all data is in-memory
+- **User Experience**: Missing loading states, error handling, and real-time updates
+- **Testimonial Storage**: No actual video/testimonial persistence to Supabase
+
 ---
 
-*Last Updated: July 28, 2025*
+*Last Updated: August 1, 2025*

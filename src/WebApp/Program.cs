@@ -39,14 +39,28 @@ builder.Services.AddCors(options =>
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
+        options.Events = new JwtBearerEvents
+        {
+            OnAuthenticationFailed = context =>
+            {
+                Log.Warning("JWT Authentication failed: {Exception}", context.Exception?.Message);
+                return Task.CompletedTask;
+            },
+            OnTokenValidated = context =>
+            {
+                Log.Information("JWT Token validated successfully for user: {UserId}", 
+                    context.Principal?.FindFirst("sub")?.Value);
+                return Task.CompletedTask;
+            }
+        };
+        
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
-            ValidateAudience = true,
+            ValidateAudience = false, // Supabase tokens don't include audience
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            ValidIssuer = builder.Configuration["Supabase:Url"],
-            ValidAudience = builder.Configuration["Supabase:Url"],
+            ValidIssuer = "http://127.0.0.1:54321/auth/v1", // Actual issuer from JWT tokens as shown in logs
             IssuerSigningKey = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(builder.Configuration["Supabase:JwtSecret"] ?? throw new InvalidOperationException("JWT Secret not found")))
         };
@@ -137,7 +151,7 @@ app.MapPost("/api/testimonials", async (
         }
 
         // Create testimonial entity
-        var testimonial = new Testimonial
+        var testimonial = new Shared.Entities.Testimonial
         {
             Id = Guid.NewGuid(),
             ProjectId = projectId,
@@ -207,9 +221,19 @@ app.MapPut("/api/testimonials/{id:guid}/approve", async (
 // Projects endpoints
 app.MapGet("/api/projects", async (ProjectService service, ClaimsPrincipal user) =>
 {
-    var userIdClaim = user.FindFirst("sub")?.Value;
+    // Debug: Log all claims
+    Log.Information("JWT Claims: {Claims}", string.Join(", ", user.Claims.Select(c => $"{c.Type}={c.Value}")));
+    
+    // Try multiple claim types for user ID
+    var userIdClaim = user.FindFirst("sub")?.Value ?? 
+                     user.FindFirst(ClaimTypes.NameIdentifier)?.Value ??
+                     user.FindFirst("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier")?.Value;
+    
+    Log.Information("Found user ID claim: {UserIdClaim}", userIdClaim);
+    
     if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
     {
+        Log.Warning("User ID validation failed. User ID claim: {UserIdClaim}", userIdClaim);
         return Results.Unauthorized();
     }
 
@@ -223,9 +247,19 @@ app.MapGet("/api/projects", async (ProjectService service, ClaimsPrincipal user)
 
 app.MapPost("/api/projects", async (ProjectService service, CreateProjectRequest request, ClaimsPrincipal user) =>
 {
-    var userIdClaim = user.FindFirst("sub")?.Value;
+    // Debug: Log all claims
+    Log.Information("JWT Claims for POST: {Claims}", string.Join(", ", user.Claims.Select(c => $"{c.Type}={c.Value}")));
+    
+    // Try multiple claim types for user ID
+    var userIdClaim = user.FindFirst("sub")?.Value ?? 
+                     user.FindFirst(ClaimTypes.NameIdentifier)?.Value ??
+                     user.FindFirst("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier")?.Value;
+    
+    Log.Information("Found user ID claim for POST: {UserIdClaim}", userIdClaim);
+    
     if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
     {
+        Log.Warning("User ID validation failed for POST. User ID claim: {UserIdClaim}", userIdClaim);
         return Results.Unauthorized();
     }
 
@@ -239,6 +273,37 @@ app.MapPost("/api/projects", async (ProjectService service, CreateProjectRequest
 })
 .RequireAuthorization()
 .WithTags("Projects");
+
+// Public endpoint to get project by slug for wall display
+app.MapGet("/api/projects/slug/{slug}", async (ProjectService service, string slug) =>
+{
+    var result = await service.GetProjectBySlugAsync(slug);
+    return result.IsSuccess
+        ? Results.Ok(result.Value)
+        : Results.NotFound("Project not found");
+})
+.WithTags("Projects");
+
+// Public endpoint to get approved testimonials for wall display
+app.MapGet("/api/wall/{projectSlug}", async (ProjectService projectService, ISupabaseClientWrapper supabaseClient, string projectSlug) =>
+{
+    // First get the project by slug
+    var projectResult = await projectService.GetProjectBySlugAsync(projectSlug);
+    if (projectResult.IsFailed)
+    {
+        return Results.NotFound("Project not found");
+    }
+
+    // Then get approved testimonials for this project
+    var testimonialsResult = await supabaseClient.GetApprovedAsync(projectResult.Value.Id);
+    
+    return Results.Ok(new
+    {
+        Project = projectResult.Value,
+        Testimonials = testimonialsResult.IsSuccess ? testimonialsResult.Value : new List<Shared.Entities.Testimonial>()
+    });
+})
+.WithTags("Wall");
 
 // Widget endpoint - serve the embeddable JavaScript
 app.MapGet("/widget.js", async () =>

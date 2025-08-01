@@ -31,7 +31,7 @@ interface CreateProjectForm {
 }
 
 export default function Dashboard() {
-  const { user } = useAuth()
+  const { user, supabase } = useAuth()
   const [projects, setProjects] = useState<Project[]>([])
   const [pendingTestimonials, setPendingTestimonials] = useState<Testimonial[]>([])
   const [loading, setLoading] = useState(true)
@@ -40,6 +40,18 @@ export default function Dashboard() {
   const [creatingProject, setCreatingProject] = useState(false)
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<CreateProjectForm>()
+  
+  // Get API base URL from environment
+  const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+
+  // Helper function to get authorization headers
+  const getAuthHeaders = async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session?.access_token}`
+    }
+  }
 
   useEffect(() => {
     if (user) {
@@ -50,8 +62,10 @@ export default function Dashboard() {
   const fetchDashboardData = async () => {
     setLoading(true)
     try {
+      const headers = await getAuthHeaders()
+      
       // Fetch user projects
-      const projectsResponse = await fetch('/api/projects')
+      const projectsResponse = await fetch(`${apiBaseUrl}/api/projects`, { headers })
       
       if (projectsResponse.ok) {
         const userProjects = await projectsResponse.json()
@@ -61,7 +75,7 @@ export default function Dashboard() {
         if (userProjects.length > 0) {
           const allPendingTestimonials: Testimonial[] = []
           for (const project of userProjects) {
-            const response = await fetch(`/api/testimonials/${project.id}?approved=false`)
+            const response = await fetch(`${apiBaseUrl}/api/testimonials/${project.id}?approved=false`, { headers })
             if (response.ok) {
               const testimonials = await response.json()
               allPendingTestimonials.push(...testimonials)
@@ -80,11 +94,11 @@ export default function Dashboard() {
   const createProject = async (data: CreateProjectForm) => {
     setCreatingProject(true)
     try {
-      const response = await fetch('/api/projects', {
+      const headers = await getAuthHeaders()
+      
+      const response = await fetch(`${apiBaseUrl}/api/projects`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify(data)
       })
 
@@ -112,8 +126,11 @@ export default function Dashboard() {
     setApprovingIds(prev => new Set(prev).add(testimonialId))
     
     try {
-      const response = await fetch(`/api/testimonials/${testimonialId}/approve`, {
-        method: 'PUT'
+      const headers = await getAuthHeaders()
+      
+      const response = await fetch(`${apiBaseUrl}/api/testimonials/${testimonialId}/approve`, {
+        method: 'PUT',
+        headers
       })
 
       if (response.ok) {

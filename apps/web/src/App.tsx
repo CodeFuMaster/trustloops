@@ -24,7 +24,7 @@ function App() {
             {/* Public routes */}
             <Route path="/login" element={<Login />} />
             <Route path="/record/:projectId" element={<VideoRecorder />} />
-            <Route path="/wall/:projectId" element={<EmbedWall />} />
+            <Route path="/wall/:projectSlug" element={<EmbedWall />} />
             
             {/* Protected routes */}
             <Route path="/dashboard" element={
