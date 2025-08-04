@@ -150,7 +150,18 @@ export default function Dashboard() {
                 <span>0 pending</span>
               </div>
               <div className="flex space-x-2">
-                <button className="btn btn-secondary text-xs">View</button>
+                <button 
+                  onClick={() => window.open(`/wall/${project.slug}`, '_blank')}
+                  className="btn btn-secondary text-xs"
+                >
+                  View Wall
+                </button>
+                <button 
+                  onClick={() => window.open(`/embed/${project.slug}`, '_blank')}
+                  className="btn btn-secondary text-xs"
+                >
+                  Embed
+                </button>
                 <button 
                   onClick={() => {
                     const url = `${window.location.origin}/record/${project.slug}`

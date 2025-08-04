@@ -7,6 +7,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const RecordTestimonial = lazy(() => import('./pages/RecordTestimonial'))
 const TestimonialManagement = lazy(() => import('./pages/TestimonialManagement'))
+const EmbedCode = lazy(() => import('./pages/EmbedCode'))
 const EmbedWall = lazy(() => import('./features/testimonials/EmbedWall'))
 const Login = lazy(() => import('./pages/Login'))
 
@@ -37,6 +38,12 @@ function App() {
             <Route path="/admin/testimonials" element={
               <ProtectedRoute>
                 <TestimonialManagement />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/embed/:projectSlug" element={
+              <ProtectedRoute>
+                <EmbedCode />
               </ProtectedRoute>
             } />
             

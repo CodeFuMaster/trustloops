@@ -1,27 +1,16 @@
-import { useState, useEffect, useRef } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
+import { useApprovedTestimonials } from '../../hooks/useTestimonials'
+import { useState, useEffect, useRef } from 'react'
 
-interface Testimonial {
-  id: string
-  projectId: string
-  customerName: string
-  customerEmail?: string
-  customerTitle?: string
-  customerCompany?: string
-  quote?: string
-  videoUrl?: string
-  rating: number
-  approved: boolean
-  createdUtc: string
-}
+const API_BASE = import.meta.env.VITE_API_URL || 'https://localhost:65173'
 
 interface Project {
   id: string
   name: string
   slug: string
-  description?: string
-  userId: string
-  createdUtc: string
+  description: string
+  callToAction: string
+  createdAt: string
 }
 
 export default function EmbedWall() {
@@ -29,19 +18,36 @@ export default function EmbedWall() {
   const [searchParams] = useSearchParams()
   const containerRef = useRef<HTMLDivElement>(null)
   const [project, setProject] = useState<Project | null>(null)
-  const [testimonials, setTestimonials] = useState<Testimonial[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [loadingProject, setLoadingProject] = useState(true)
+  const [projectError, setProjectError] = useState<string | null>(null)
+  
+  const { data: testimonials, isLoading: testimonialsLoading, error: testimonialsError } = useApprovedTestimonials(project?.id || '')
   
   const isEmbedded = searchParams.get('embed') === 'true'
-  const theme = searchParams.get('theme') || 'light'
-  const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
   useEffect(() => {
     if (projectSlug) {
-      fetchWallData()
+      fetchProject()
     }
   }, [projectSlug])
+
+  const fetchProject = async () => {
+    try {
+      setLoadingProject(true)
+      setProjectError(null)
+      const response = await fetch(`${API_BASE}/api/projects/${projectSlug}`)
+      if (response.ok) {
+        const projectData = await response.json()
+        setProject(projectData)
+      } else {
+        setProjectError('Project not found')
+      }
+    } catch (err) {
+      setProjectError('Failed to load project')
+    } finally {
+      setLoadingProject(false)
+    }
+  }
 
   // Handle iframe resizing for embedded mode
   useEffect(() => {
@@ -67,30 +73,6 @@ export default function EmbedWall() {
     }
   }, [isEmbedded, testimonials]) // Re-observe when testimonials change
 
-  const fetchWallData = async () => {
-    setLoading(true)
-    setError(null)
-    
-    try {
-      const response = await fetch(`${apiBaseUrl}/api/wall/${projectSlug}`)
-      
-      if (response.ok) {
-        const data = await response.json()
-        setProject(data.project)
-        setTestimonials(data.testimonials || [])
-      } else if (response.status === 404) {
-        setError('Project not found')
-      } else {
-        throw new Error('Failed to fetch wall data')
-      }
-    } catch (err) {
-      console.error('Error fetching wall data:', err)
-      setError('Failed to load testimonials')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -98,6 +80,9 @@ export default function EmbedWall() {
       day: 'numeric'
     })
   }
+
+  const loading = loadingProject || testimonialsLoading
+  const error = projectError || testimonialsError
 
   if (loading) {
     return (
@@ -111,8 +96,9 @@ export default function EmbedWall() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
+          <div className="text-6xl mb-4">😞</div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
-            {error || 'Project Not Found'}
+            {typeof error === 'string' ? error : 'Project Not Found'}
           </h1>
           <p className="text-gray-600">
             The testimonial wall you're looking for doesn't exist or has been removed.
@@ -121,6 +107,11 @@ export default function EmbedWall() {
       </div>
     )
   }
+
+  const approvedTestimonials = testimonials || []
+  const averageRating = approvedTestimonials.length > 0 
+    ? approvedTestimonials.reduce((sum, t) => sum + t.rating, 0) / approvedTestimonials.length 
+    : 0
 
   return (
     <div 
@@ -147,7 +138,7 @@ export default function EmbedWall() {
 
       {/* Testimonials */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        {testimonials.length === 0 ? (
+        {approvedTestimonials.length === 0 ? (
           <div className="text-center py-12">
             <svg
               className="w-16 h-16 text-gray-400 mx-auto mb-4"
@@ -172,7 +163,7 @@ export default function EmbedWall() {
               href={`/record/${projectSlug}`}
               className="mt-4 inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
-              Share Your Story
+              {project.callToAction || 'Share Your Story'}
             </a>
           </div>
         ) : (
@@ -182,10 +173,10 @@ export default function EmbedWall() {
               <div className="inline-flex items-center space-x-8 bg-white rounded-lg px-8 py-4 shadow-sm">
                 <div>
                   <div className="text-2xl font-bold text-gray-900">
-                    {testimonials.length}
+                    {approvedTestimonials.length}
                   </div>
                   <div className="text-sm text-gray-600">
-                    {testimonials.length === 1 ? 'Testimonial' : 'Testimonials'}
+                    {approvedTestimonials.length === 1 ? 'Testimonial' : 'Testimonials'}
                   </div>
                 </div>
                 
@@ -193,7 +184,7 @@ export default function EmbedWall() {
                 
                 <div>
                   <div className="text-2xl font-bold text-gray-900">
-                    {(testimonials.reduce((sum, t) => sum + t.rating, 0) / testimonials.length).toFixed(1)}
+                    {averageRating.toFixed(1)}
                   </div>
                   <div className="text-sm text-gray-600">
                     Average Rating
@@ -204,7 +195,7 @@ export default function EmbedWall() {
 
             {/* Testimonials Grid */}
             <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
-              {testimonials.map((testimonial) => (
+              {approvedTestimonials.map((testimonial) => (
                 <div
                   key={testimonial.id}
                   className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow"
@@ -246,9 +237,9 @@ export default function EmbedWall() {
                     </div>
 
                     {/* Quote */}
-                    {testimonial.quote && (
+                    {testimonial.content && (
                       <blockquote className="text-gray-800 mb-4 leading-relaxed">
-                        "{testimonial.quote}"
+                        "{testimonial.content}"
                       </blockquote>
                     )}
 
@@ -263,7 +254,7 @@ export default function EmbedWall() {
                         </div>
                       )}
                       <div className="text-xs text-gray-500 mt-1">
-                        {formatDate(testimonial.createdUtc)}
+                        {formatDate(testimonial.createdAt)}
                       </div>
                     </div>
                   </div>

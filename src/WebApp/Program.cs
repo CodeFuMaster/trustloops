@@ -201,6 +201,48 @@ app.MapGet("/api/projects/{projectId}/testimonials", async (Guid projectId, Test
 })
 .WithTags("Testimonials");
 
+// Public Embed Wall endpoint - doesn't require authentication
+app.MapGet("/api/wall/{projectSlug}", async (string projectSlug, ProjectService projectService, TestimonialService testimonialService) =>
+{
+    try
+    {
+        // Get project by slug (public endpoint)
+        var projectResult = await projectService.GetProjectBySlugAsync(projectSlug);
+        if (!projectResult.IsSuccess)
+        {
+            return Results.NotFound("Project not found");
+        }
+        
+        var project = projectResult.Value;
+        
+        // Get approved testimonials for the project
+        var testimonialsResult = await testimonialService.GetApprovedTestimonialsByProjectAsync(project.Id);
+        
+        var wallData = new
+        {
+            project = new
+            {
+                id = project.Id,
+                name = project.Name,
+                slug = project.Slug,
+                description = project.Description,
+                callToAction = project.CallToAction,
+                createdAt = project.CreatedUtc
+            },
+            testimonials = testimonialsResult.IsSuccess ? testimonialsResult.Value : new List<Testimonial>()
+        };
+        
+        return Results.Ok(wallData);
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error in GET /api/wall/{projectSlug}: {ex.Message}");
+        return Results.Problem("Internal server error");
+    }
+})
+.WithTags("Wall")
+.AllowAnonymous(); // This endpoint should be public
+
 try
 {
     Console.WriteLine("=== Starting TrustLoops WebApp ===");
