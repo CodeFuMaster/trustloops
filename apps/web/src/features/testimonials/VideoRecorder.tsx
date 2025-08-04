@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 
 interface CustomerInfo {
   name: string
@@ -12,7 +12,6 @@ interface CustomerInfo {
 
 export default function VideoRecorder() {
   const { projectId } = useParams<{ projectId: string }>()
-  const navigate = useNavigate()
   
   const [isRecording, setIsRecording] = useState(false)
   const [recordedVideo, setRecordedVideo] = useState<Blob | null>(null)
