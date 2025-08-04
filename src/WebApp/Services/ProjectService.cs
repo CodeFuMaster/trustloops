@@ -28,7 +28,12 @@ public class ProjectService
             if (_supabaseClient != null)
             {
                 // Use new Supabase client
-                var project = await _supabaseClient.CreateProjectAsync(request.Name, request.Description ?? "", request.UserId);
+                var project = await _supabaseClient.CreateProjectAsync(
+                    request.Name, 
+                    request.Description ?? "", 
+                    request.UserId,
+                    request.CallToAction ?? "Share your experience"
+                );
                 _logger.LogInformation("Created project {ProjectId} with slug {Slug}", project.Id, project.Slug);
                 return Result.Ok(project);
             }

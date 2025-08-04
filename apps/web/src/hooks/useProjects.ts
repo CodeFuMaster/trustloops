@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000';
+const API_BASE = import.meta.env.VITE_API_URL || 'https://localhost:65173';
 
 interface Project {
   id: string;
@@ -15,6 +15,7 @@ interface Project {
 interface CreateProjectRequest {
   name: string;
   description?: string;
+  callToAction?: string;
 }
 
 export function useProjects() {

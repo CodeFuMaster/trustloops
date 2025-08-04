@@ -3,6 +3,22 @@ using Supabase.Postgrest.Models;
 
 namespace Infrastructure.Models;
 
+[Table("users")]
+public class SupabaseUser : BaseModel
+{
+    [PrimaryKey("id")]
+    public Guid Id { get; set; }
+
+    [Column("email")]
+    public string Email { get; set; } = string.Empty;
+
+    [Column("created_utc")]
+    public DateTime CreatedAt { get; set; }
+
+    [Column("updated_utc")]
+    public DateTime UpdatedAt { get; set; }
+}
+
 [Table("projects")]
 public class SupabaseProject : BaseModel
 {
@@ -17,6 +33,9 @@ public class SupabaseProject : BaseModel
 
     [Column("description")]
     public string? Description { get; set; }
+
+    [Column("call_to_action")]
+    public string CallToAction { get; set; } = "Share your experience";
 
     [Column("user_id")]
     public Guid UserId { get; set; }

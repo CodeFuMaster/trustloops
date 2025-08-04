@@ -1,5 +1,6 @@
 using Supabase;
 using Supabase.Gotrue;
+using Supabase.Postgrest.Exceptions;
 using Models = Shared.Models;
 using Infrastructure.Models;
 using Microsoft.Extensions.Logging;
@@ -17,7 +18,96 @@ public class SupabaseClient
         _logger = logger;
     }
 
-    public async Task<Models.Project> CreateProjectAsync(string name, string description, Guid userId)
+    public async Task<Models.Project> CreateProjectAsync(string name, string description, Guid userId, string callToAction = "Share your experience")
+    {
+        try
+        {
+            // Simply ensure user exists before project creation - no verification after
+            await EnsureUserExistsAsync(userId);
+            
+            var slug = GenerateSlug(name);
+            
+            var project = new SupabaseProject
+            {
+                Id = Guid.NewGuid(),
+                Name = name,
+                Description = description,
+                Slug = slug,
+                CallToAction = callToAction,
+                UserId = userId,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            var result = await _client
+                .From<SupabaseProject>()
+                .Insert(project);
+
+            if (result?.Models?.FirstOrDefault() != null)
+            {
+                var createdProject = result.Models.First();
+                _logger.LogInformation("Project created successfully: {ProjectId}", createdProject.Id);
+                
+                return new Models.Project
+                {
+                    Id = createdProject.Id,
+                    Name = createdProject.Name,
+                    Slug = createdProject.Slug,
+                    Description = createdProject.Description,
+                    CallToAction = createdProject.CallToAction,
+                    UserId = createdProject.UserId,
+                    CreatedUtc = createdProject.CreatedAt,
+                    UpdatedUtc = createdProject.UpdatedAt
+                };
+            }
+
+            throw new InvalidOperationException("Failed to create project");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating project: {ProjectName}", name);
+            throw;
+        }
+    }
+    
+    private async Task UpsertUserForProject(Guid userId)
+    {
+        try
+        {
+            var email = $"user+{userId}@example.com";
+            var now = DateTime.UtcNow;
+            
+            // Use PostgreSQL UPSERT (INSERT ... ON CONFLICT) 
+            var user = new SupabaseUser
+            {
+                Id = userId,
+                Email = email,
+                CreatedAt = now,
+                UpdatedAt = now
+            };
+            
+            // This will either insert or update based on conflicts
+            var result = await _client
+                .From<SupabaseUser>()
+                .Upsert(user);
+                
+            if (result?.Models?.Any() == true)
+            {
+                _logger.LogInformation("User {UserId} upserted successfully for project creation", userId);
+            }
+            else
+            {
+                throw new InvalidOperationException($"Failed to upsert user {userId}");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to upsert user {UserId}", userId);
+            throw;
+        }
+    }
+    
+    private async Task<Models.Project?> TryCreateProject(string name, string description, Guid userId)
     {
         try
         {
@@ -55,11 +145,21 @@ public class SupabaseClient
                 };
             }
 
-            throw new InvalidOperationException("Failed to create project");
+            return null; // Project creation failed
+        }
+        catch (PostgrestException ex)
+        {
+            // Check if it's a foreign key constraint error
+            if (ex.Message.Contains("23503") && ex.Message.Contains("projects_user_id_fkey"))
+            {
+                _logger.LogWarning("Foreign key constraint error creating project - user {UserId} not found", userId);
+                return null; // Let the caller handle user creation
+            }
+            throw; // Re-throw other database errors
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error creating project: {Name}", name);
+            _logger.LogError(ex, "Unexpected error creating project");
             throw;
         }
     }
@@ -325,6 +425,106 @@ public class SupabaseClient
         {
             _logger.LogError(ex, "Error uploading video: {FileName}", fileName);
             throw;
+        }
+    }
+
+    private async Task EnsureUserExistsAsync(Guid userId)
+    {
+        try
+        {
+            _logger.LogInformation("Checking if user {UserId} exists in users table", userId);
+            
+            // Check if user already exists in our users table
+            var existingUser = await _client
+                .From<SupabaseUser>()
+                .Where(u => u.Id == userId)
+                .Get();
+
+            if (existingUser?.Models?.Any() == true)
+            {
+                _logger.LogInformation("User {UserId} already exists in users table", userId);
+                return;
+            }
+
+            _logger.LogInformation("User {UserId} not found, will create new user", userId);
+
+            // Check if there's already a user with this email (from previous failed attempts)
+            var emailToUse = $"user+{userId}@example.com";
+            var existingEmailUser = await _client
+                .From<SupabaseUser>()
+                .Where(u => u.Email == emailToUse)
+                .Get();
+
+            if (existingEmailUser?.Models?.Any() == true)
+            {
+                var existingUserRecord = existingEmailUser.Models.First();
+                _logger.LogWarning("Found existing user with email {Email} but different ID: existing={ExistingId}, requested={RequestedId}", 
+                    emailToUse, existingUserRecord.Id, userId);
+                
+                // Delete the existing user record and recreate with correct ID
+                _logger.LogInformation("Deleting existing user record with wrong ID {ExistingId}", existingUserRecord.Id);
+                await _client
+                    .From<SupabaseUser>()
+                    .Where(u => u.Email == emailToUse)
+                    .Delete();
+                
+                // Create new user with correct ID
+                _logger.LogInformation("Creating new user record with correct ID {UserId}", userId);
+                var correctedUser = new SupabaseUser
+                {
+                    Id = userId,
+                    Email = emailToUse,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                var recreateResult = await _client
+                    .From<SupabaseUser>()
+                    .Insert(correctedUser);
+
+                if (recreateResult?.Models?.Any() != true)
+                {
+                    throw new InvalidOperationException($"Failed to recreate user record for {userId}");
+                }
+                
+                _logger.LogInformation("Successfully recreated user record with ID {UserId}", userId);
+                // Trust that the user now exists, don't verify
+                return;
+            }
+
+            // User doesn't exist, create them
+            _logger.LogInformation("Creating new user record for {UserId} with email {Email}", userId, emailToUse);
+            
+            var newUser = new SupabaseUser
+            {
+                Id = userId,
+                Email = emailToUse,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            var insertResult = await _client
+                .From<SupabaseUser>()
+                .Insert(newUser);
+
+            // Verify the insertion was successful
+            if (insertResult?.Models?.Any() != true)
+            {
+                throw new InvalidOperationException($"Failed to create user record for {userId} - no result returned");
+            }
+
+            _logger.LogInformation("Successfully created user record for {UserId}", userId);
+        }
+        catch (PostgrestException ex) when (ex.Message.Contains("users_email_key"))
+        {
+            // This should now be handled above, but keep as fallback
+            _logger.LogInformation("User with email for {UserId} already exists - fallback handling", userId);
+            return;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to ensure user {UserId} exists", userId);
+            throw; // Re-throw to prevent project creation from continuing
         }
     }
 

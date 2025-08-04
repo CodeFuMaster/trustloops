@@ -8,6 +8,7 @@ public class Project
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
     public string Slug { get; set; } = string.Empty;
+    public string CallToAction { get; set; } = "Share your experience";
     public DateTime CreatedUtc { get; set; }
     public DateTime UpdatedUtc { get; set; }
     public bool IsActive { get; set; } = true;
@@ -26,6 +27,7 @@ public class CreateProjectRequest
 {
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
+    public string? CallToAction { get; set; } = "Share your experience";
     public string? Theme { get; set; } = "default";
     public bool AutoApprove { get; set; } = false;
     public Guid UserId { get; set; }

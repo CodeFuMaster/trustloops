@@ -4,8 +4,9 @@ import { AuthProvider } from './contexts/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 
 // Lazy load components for better bundle splitting
-const Dashboard = lazy(() => import('./features/testimonials/Dashboard'))
-const VideoRecorder = lazy(() => import('./features/testimonials/VideoRecorder'))
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const RecordTestimonial = lazy(() => import('./pages/RecordTestimonial'))
+const TestimonialManagement = lazy(() => import('./pages/TestimonialManagement'))
 const EmbedWall = lazy(() => import('./features/testimonials/EmbedWall'))
 const Login = lazy(() => import('./pages/Login'))
 
@@ -23,13 +24,19 @@ function App() {
           <Routes>
             {/* Public routes */}
             <Route path="/login" element={<Login />} />
-            <Route path="/record/:projectId" element={<VideoRecorder />} />
+            <Route path="/record/:projectSlug" element={<RecordTestimonial />} />
             <Route path="/wall/:projectSlug" element={<EmbedWall />} />
             
             {/* Protected routes */}
             <Route path="/dashboard" element={
               <ProtectedRoute>
                 <Dashboard />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/admin/testimonials" element={
+              <ProtectedRoute>
+                <TestimonialManagement />
               </ProtectedRoute>
             } />
             
