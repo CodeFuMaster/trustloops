@@ -13,7 +13,7 @@ public class UserService
         _logger = logger;
     }
 
-    public async Task<Result<User>> GetUserByIdAsync(Guid userId)
+    public Task<Result<User>> GetUserByIdAsync(Guid userId)
     {
         // TODO: Implement get user by ID from Supabase
         _logger.LogInformation("Getting user {UserId}", userId);
@@ -21,7 +21,7 @@ public class UserService
         throw new NotImplementedException("Get user by ID not yet implemented");
     }
 
-    public async Task<Result<User>> CreateUserAsync(CreateUserRequest request)
+    public Task<Result<User>> CreateUserAsync(CreateUserRequest request)
     {
         // TODO: Implement user creation with Supabase
         _logger.LogInformation("Creating user {Email}", request.Email);

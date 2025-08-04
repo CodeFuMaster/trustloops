@@ -252,3 +252,6 @@ catch (Exception ex)
 {
     Console.WriteLine($"Application terminated unexpectedly: {ex.Message}");
 }
+
+// Make Program class accessible for testing
+public partial class Program { }
