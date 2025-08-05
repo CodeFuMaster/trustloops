@@ -488,7 +488,19 @@ public class SupabaseClient
                 }
                 
                 _logger.LogInformation("Successfully recreated user record with ID {UserId}", userId);
-                // Trust that the user now exists, don't verify
+                
+                // Verify the user actually exists now before proceeding
+                var verificationResult = await _client
+                    .From<SupabaseUser>()
+                    .Where(u => u.Id == userId)
+                    .Get();
+                    
+                if (verificationResult?.Models?.Any() != true)
+                {
+                    throw new InvalidOperationException($"User {userId} not found after recreation - verification failed");
+                }
+                
+                _logger.LogInformation("Verified user {UserId} exists after recreation", userId);
                 return;
             }
 
@@ -514,6 +526,19 @@ public class SupabaseClient
             }
 
             _logger.LogInformation("Successfully created user record for {UserId}", userId);
+            
+            // Verify the user actually exists now before proceeding
+            var creationVerification = await _client
+                .From<SupabaseUser>()
+                .Where(u => u.Id == userId)
+                .Get();
+                
+            if (creationVerification?.Models?.Any() != true)
+            {
+                throw new InvalidOperationException($"User {userId} not found after creation - verification failed");
+            }
+            
+            _logger.LogInformation("Verified user {UserId} exists after creation", userId);
         }
         catch (PostgrestException ex) when (ex.Message.Contains("users_email_key"))
         {
