@@ -10,6 +10,9 @@ const TestimonialManagement = lazy(() => import('./pages/TestimonialManagement')
 const EmbedCode = lazy(() => import('./pages/EmbedCode'))
 const EmbedWall = lazy(() => import('./features/testimonials/EmbedWall'))
 const Login = lazy(() => import('./pages/Login'))
+const AuthCallback = lazy(() => import('./pages/AuthCallback'))
+const Analytics = lazy(() => import('./pages/Analytics'))
+const Theming = lazy(() => import('./pages/Theming'))
 
 function App() {
   return (
@@ -25,7 +28,10 @@ function App() {
           <Routes>
             {/* Public routes */}
             <Route path="/login" element={<Login />} />
+            <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/record/:projectSlug" element={<RecordTestimonial />} />
+            {/* Alias to support /record/:slug as requested */}
+            <Route path="/record/:slug" element={<RecordTestimonial />} />
             <Route path="/wall/:projectSlug" element={<EmbedWall />} />
             
             {/* Protected routes */}
@@ -44,6 +50,18 @@ function App() {
             <Route path="/embed/:projectSlug" element={
               <ProtectedRoute>
                 <EmbedCode />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/analytics" element={
+              <ProtectedRoute>
+                <Analytics />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/theming" element={
+              <ProtectedRoute>
+                <Theming />
               </ProtectedRoute>
             } />
             

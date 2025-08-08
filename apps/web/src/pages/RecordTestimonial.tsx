@@ -79,11 +79,19 @@ export default function RecordTestimonial() {
         videoRef.current.srcObject = stream
       }
 
-      // Safari/iOS may not support vp9; fall back to webm default
-      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-        ? 'video/webm;codecs=vp9'
-        : (MediaRecorder.isTypeSupported('video/webm;codecs=vp8') ? 'video/webm;codecs=vp8' : 'video/webm')
-      const mediaRecorder = new MediaRecorder(stream, { mimeType })
+      // Safari/iOS codecs fallback. Try vp9 -> vp8 -> webm, else omit mimeType and let the UA choose (often H.264/MP4 on Safari)
+      let mimeType: string | undefined
+      if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9')) {
+        mimeType = 'video/webm;codecs=vp9'
+      } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8')) {
+        mimeType = 'video/webm;codecs=vp8'
+      } else if (MediaRecorder.isTypeSupported('video/webm')) {
+        mimeType = 'video/webm'
+      } else {
+        mimeType = undefined
+      }
+      const options = mimeType ? { mimeType } : undefined
+      const mediaRecorder = new MediaRecorder(stream, options as MediaRecorderOptions | undefined)
       
       const chunks: BlobPart[] = []
       
@@ -106,10 +114,19 @@ export default function RecordTestimonial() {
       mediaRecorderRef.current = mediaRecorder
       mediaRecorder.start()
       setIsRecording(true)
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error accessing camera:', err)
-      setError('Could not access camera. Please check permissions.')
-      showToast('error', 'Camera/mic permission denied. Please allow access and try again.')
+      const name = err?.name
+      if (name === 'NotAllowedError' || name === 'SecurityError') {
+        setError('Camera/microphone permission was denied.')
+        showToast('error', 'Permission denied. Enable camera and microphone in your browser settings and try again.')
+      } else if (name === 'NotFoundError' || name === 'OverconstrainedError') {
+        setError('No camera or microphone found.')
+        showToast('error', 'No camera/mic detected. Please connect a device and retry.')
+      } else {
+        setError('Could not access camera. Please check permissions and available devices.')
+        showToast('error', 'Could not access camera/mic. Check permissions and devices.')
+      }
     }
   }
 
@@ -418,11 +435,12 @@ export default function RecordTestimonial() {
                   
                   <div className="text-center">
                     <div className="mb-6">
-                      {(isRecording || recordedVideo) && (
+            {(isRecording || recordedVideo) && (
                         <video
                           ref={videoRef}
                           autoPlay
                           muted
+              playsInline
                           className="w-full max-w-lg mx-auto rounded-xl border-4 border-white shadow-2xl"
                           style={{ display: isRecording ? 'block' : 'none' }}
                         />
@@ -431,6 +449,7 @@ export default function RecordTestimonial() {
                         <video
                           src={recordedVideo}
                           controls
+              playsInline
                           className="w-full max-w-lg mx-auto rounded-xl border-4 border-white shadow-2xl"
                         />
                       )}
