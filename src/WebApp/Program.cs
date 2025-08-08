@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using System.IdentityModel.Tokens.Jwt;
+using Infrastructure.Models;
 using WebApp.Services;
 using Infrastructure.Extensions;
 using Shared.Models;
@@ -107,6 +108,7 @@ Console.WriteLine("Adding Application Services...");
 builder.Services.AddScoped<TestimonialService>();
 builder.Services.AddScoped<ProjectService>();  
 builder.Services.AddScoped<UserService>();
+builder.Services.AddScoped<AnalyticsService>(); // Add Analytics service
 
 // Add MediatR
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(Program).Assembly));

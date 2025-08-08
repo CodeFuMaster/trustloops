@@ -9,6 +9,7 @@ public interface IAnalyticsService
 {
     Task TrackTestimonialViewAsync(Guid testimonialId, Guid projectId, string? visitorId = null, string? ipAddress = null, string? userAgent = null, string? referrer = null);
     Task TrackTestimonialShareAsync(Guid testimonialId, Guid projectId, string platform, string? visitorId = null);
+    Task TrackProjectViewAsync(Guid projectId, string? visitorId = null, string? ipAddress = null, string? userAgent = null, string? referrer = null);
     Task<TestimonialAnalytics> GetProjectAnalyticsAsync(Guid projectId, DateTime? startDate = null, DateTime? endDate = null);
     Task<List<EngagementMetrics>> GetTopPerformingTestimonialsAsync(Guid projectId, int limit = 10);
     Task<ConversionMetrics> GetConversionMetricsAsync(Guid projectId, DateTime? startDate = null, DateTime? endDate = null);
@@ -79,6 +80,33 @@ public class AnalyticsService : IAnalyticsService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error tracking testimonial share: {TestimonialId}", testimonialId);
+        }
+    }
+
+    public async Task TrackProjectViewAsync(Guid projectId, string? visitorId = null, string? ipAddress = null, string? userAgent = null, string? referrer = null)
+    {
+        try
+        {
+            var view = new SupabaseProjectView
+            {
+                Id = Guid.NewGuid(),
+                ProjectId = projectId,
+                VisitorId = visitorId,
+                IpAddress = ipAddress,
+                UserAgent = userAgent,
+                Referrer = referrer,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            await _client
+                .From<SupabaseProjectView>()
+                .Insert(view);
+
+            _logger.LogInformation("Tracked project view: {ProjectId}", projectId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error tracking project view: {ProjectId}", projectId);
         }
     }
 

@@ -45,16 +45,26 @@ export default function SocialShareButtons({
     }
   });
 
+  const ensureVisitorId = () => {
+    let vid = localStorage.getItem('visitorId')
+    if (!vid) {
+      vid = crypto.randomUUID()
+      localStorage.setItem('visitorId', vid)
+    }
+    return vid
+  }
+
   const handleShare = async (platform: string, url: string) => {
     // Track the share
     try {
-      await fetch(`/api/analytics/testimonial/${testimonialId}/share`, {
+    const visitorId = ensureVisitorId()
+    await fetch(`/api/analytics/testimonial/${testimonialId}/share`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           projectId: 'unknown', // You'd need to pass this in
-          platform,
-          visitorId: localStorage.getItem('visitorId') || undefined
+      platform,
+      visitorId
         })
       });
     } catch (error) {

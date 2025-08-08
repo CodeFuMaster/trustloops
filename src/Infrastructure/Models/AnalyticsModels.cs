@@ -56,6 +56,31 @@ public class SupabaseTestimonialShare : BaseModel
     public DateTime CreatedAt { get; set; }
 }
 
+[Table("project_views")]
+public class SupabaseProjectView : BaseModel
+{
+    [PrimaryKey("id")]
+    public Guid Id { get; set; }
+
+    [Column("project_id")]
+    public Guid ProjectId { get; set; }
+
+    [Column("visitor_id")]
+    public string? VisitorId { get; set; }
+
+    [Column("ip_address")]
+    public string? IpAddress { get; set; }
+
+    [Column("user_agent")]
+    public string? UserAgent { get; set; }
+
+    [Column("referrer")]
+    public string? Referrer { get; set; }
+
+    [Column("created_utc")]
+    public DateTime CreatedAt { get; set; }
+}
+
 [Table("project_themes")]
 public class SupabaseProjectTheme : BaseModel
 {

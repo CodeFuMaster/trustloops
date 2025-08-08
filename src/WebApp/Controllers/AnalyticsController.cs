@@ -142,6 +142,33 @@ public class AnalyticsController : ControllerBase
         }
     }
 
+    [HttpGet("project/{projectId}/pixel")]
+    [AllowAnonymous]
+    public async Task<IActionResult> TrackProjectPixel(Guid projectId)
+    {
+        try
+        {
+            var userAgent = Request.Headers.UserAgent.ToString();
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
+            var referrer = Request.Headers.Referer.ToString();
+            var vid = Request.Query["v"].ToString();
+
+            await _analyticsService.TrackProjectViewAsync(projectId, vid, ipAddress, userAgent, referrer);
+
+            // Return a 1x1 transparent gif
+            var pixel = new byte[]
+            {
+                71,73,70,56,57,97,1,0,1,0,128,0,0,0,0,0,255,255,255,33,249,4,1,0,0,1,0,44,0,0,0,0,1,0,1,0,0,2,2,68,1,0,59
+            };
+            return File(pixel, "image/gif");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error tracking project pixel for {ProjectId}", projectId);
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
     private Guid GetUserId()
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;

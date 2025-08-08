@@ -50,6 +50,21 @@ export default function EmbedWall() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectSlug, tags, minRating])
 
+  // Track project view via 1x1 pixel when embedded
+  useEffect(() => {
+    if (!isEmbedded || !project?.id) return
+    try {
+      const visitorId = localStorage.getItem('visitorId') || ''
+      const img = new Image(1, 1)
+      const base = (import.meta.env.VITE_API_URL || '') as string
+      const url = new URL(`${base}/api/analytics/project/${project.id}/pixel`)
+      if (visitorId) url.searchParams.set('v', visitorId)
+      img.src = url.toString()
+    } catch {
+      // ignore
+    }
+  }, [isEmbedded, project?.id])
+
   // Handle iframe resizing for embedded mode
   useEffect(() => {
     if (!isEmbedded || !containerRef.current) return
