@@ -2,11 +2,14 @@
 // Injects an iframe showing the testimonial wall for a project
 
 interface TrustLoopsWidgetConfig {
-  projectId: string
+  projectSlug?: string
+  projectId?: string // legacy
   container?: string | HTMLElement
   height?: number
   width?: number | string
   theme?: 'light' | 'dark'
+  tags?: string[]
+  minRating?: number
 }
 
 class TrustLoopsWidget {
@@ -59,12 +62,11 @@ class TrustLoopsWidget {
 
   private getIframeUrl(): string {
     const baseUrl = this.getBaseUrl()
-    const params = new URLSearchParams({
-      theme: this.config.theme!,
-      embed: 'true'
-    })
-    
-    return `${baseUrl}/wall/${this.config.projectId}?${params.toString()}`
+  const params = new URLSearchParams({ theme: this.config.theme!, embed: 'true' })
+  if (this.config.tags && this.config.tags.length) params.set('tags', this.config.tags.join(','))
+  if (typeof this.config.minRating === 'number') params.set('minRating', String(this.config.minRating))
+  const slugOrId = this.config.projectSlug || this.config.projectId
+  return `${baseUrl}/wall/${slugOrId}?${params.toString()}`
   }
 
   private getBaseUrl(): string {
@@ -129,22 +131,28 @@ window.TrustLoops.widget = (config: TrustLoopsWidgetConfig) => {
 
 // Auto-initialization from data attributes
 document.addEventListener('DOMContentLoaded', () => {
-  const scripts = document.querySelectorAll('script[data-trustloops-project-id]')
+  const scripts = document.querySelectorAll('script[data-trustloops-project-slug], script[data-trustloops-project-id]')
   
   scripts.forEach((script) => {
-    const projectId = script.getAttribute('data-trustloops-project-id')
+  const projectSlug = script.getAttribute('data-trustloops-project-slug')
+  const projectId = script.getAttribute('data-trustloops-project-id') // legacy
     const container = script.getAttribute('data-container')
     const height = script.getAttribute('data-height')
     const width = script.getAttribute('data-width')
     const theme = script.getAttribute('data-theme') as 'light' | 'dark'
+  const tagsAttr = script.getAttribute('data-tags')
+  const minRatingAttr = script.getAttribute('data-min-rating')
 
-    if (projectId) {
+  if (projectSlug || projectId) {
       const config: TrustLoopsWidgetConfig = {
-        projectId,
+    projectSlug: projectSlug || undefined,
+    projectId: projectId || undefined,
         container: container || script.parentElement!,
         height: height ? parseInt(height) : undefined,
         width: width || undefined,
-        theme: theme || undefined
+    theme: theme || undefined,
+    tags: tagsAttr ? tagsAttr.split(',').map(t => t.trim()).filter(Boolean) : undefined,
+    minRating: minRatingAttr ? parseInt(minRatingAttr) : undefined,
       }
 
       new TrustLoopsWidget(config)

@@ -23,7 +23,7 @@ export function EmbedCodeGenerator({ projectSlug }: EmbedCodeGeneratorProps) {
   scrolling="no">
 </iframe>`
 
-  const scriptCode = `<script src="${baseUrl}/widget.js" data-trustloops-project-slug="${projectSlug}" data-height="${embedOptions.height}" data-theme="${embedOptions.theme}"></script>`
+  const scriptCode = `<script src="${baseUrl}/widget.js" data-trustloops-project-slug="${projectSlug}" data-height="${embedOptions.height}" data-theme="${embedOptions.theme}" data-tags="" data-min-rating=""></script>`
 
   const [copiedCode, setCopiedCode] = useState<string | null>(null)
 

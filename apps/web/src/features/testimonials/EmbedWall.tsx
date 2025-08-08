@@ -1,5 +1,4 @@
 import { useParams, useSearchParams } from 'react-router-dom'
-import { useApprovedTestimonials } from '../../hooks/useTestimonials'
 import { useState, useEffect, useRef } from 'react'
 
 const API_BASE = import.meta.env.VITE_API_URL || 'https://localhost:65173'
@@ -18,36 +17,38 @@ export default function EmbedWall() {
   const [searchParams] = useSearchParams()
   const containerRef = useRef<HTMLDivElement>(null)
   const [project, setProject] = useState<Project | null>(null)
-  const [loadingProject, setLoadingProject] = useState(true)
-  const [projectError, setProjectError] = useState<string | null>(null)
-  
-  const { data: testimonials, isLoading: testimonialsLoading, error: testimonialsError } = useApprovedTestimonials(project?.id || '')
+  const [testimonials, setTestimonials] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   
   const isEmbedded = searchParams.get('embed') === 'true'
+  const tags = searchParams.get('tags') || undefined
+  const minRating = searchParams.get('minRating') || searchParams.get('minrating') || undefined
 
   useEffect(() => {
-    if (projectSlug) {
-      fetchProject()
-    }
-  }, [projectSlug])
-
-  const fetchProject = async () => {
-    try {
-      setLoadingProject(true)
-      setProjectError(null)
-      const response = await fetch(`${API_BASE}/api/projects/${projectSlug}`)
-      if (response.ok) {
-        const projectData = await response.json()
-        setProject(projectData)
-      } else {
-        setProjectError('Project not found')
+    const load = async () => {
+      if (!projectSlug) return
+      try {
+        setLoading(true)
+        setError(null)
+        const params = new URLSearchParams()
+        params.set('embed', 'true')
+        if (tags) params.set('tags', tags)
+        if (minRating) params.set('minRating', minRating)
+        const res = await fetch(`${API_BASE}/api/wall/${projectSlug}?${params.toString()}`)
+        if (!res.ok) throw new Error('Failed to load wall')
+        const json = await res.json()
+        setProject(json.project)
+        setTestimonials(json.testimonials || [])
+      } catch (e: any) {
+        setError(e?.message || 'Failed to load wall')
+      } finally {
+        setLoading(false)
       }
-    } catch (err) {
-      setProjectError('Failed to load project')
-    } finally {
-      setLoadingProject(false)
     }
-  }
+    load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectSlug, tags, minRating])
 
   // Handle iframe resizing for embedded mode
   useEffect(() => {
@@ -81,8 +82,7 @@ export default function EmbedWall() {
     })
   }
 
-  const loading = loadingProject || testimonialsLoading
-  const error = projectError || testimonialsError
+  // loading and error already managed locally
 
   if (loading) {
     return (

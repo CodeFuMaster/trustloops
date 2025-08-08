@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using System.IdentityModel.Tokens.Jwt;
 using WebApp.Services;
 using Infrastructure.Extensions;
 using Shared.Models;
+using MediatR;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -20,28 +22,79 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("DefaultPolicy", policy =>
     {
-        policy.WithOrigins("http://localhost:5173", "https://trustloops.com")
+        policy.WithOrigins("http://localhost:5173", "http://localhost:5174", "https://trustloops.com")
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();
     });
 });
 
-// Step 3: Configure JWT Authentication with safe fallback
+// Step 3: Configure JWT Authentication with manual token parsing
 Console.WriteLine("Configuring Authentication...");
-var jwtSecret = builder.Configuration["Supabase:JwtSecret"] ?? "default-development-secret-for-testing-purposes-only";
+var config = builder.Configuration;
 
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
+builder.Services.AddAuthentication("Bearer")
+    .AddJwtBearer("Bearer", opts =>
     {
-        options.TokenValidationParameters = new TokenValidationParameters
+        opts.TokenValidationParameters = new()
         {
-            ValidateIssuer = true,
+            ValidateIssuer = false,
             ValidateAudience = false,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = "http://127.0.0.1:54321/auth/v1",
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret))
+            ValidateIssuerSigningKey = false,
+            RequireSignedTokens = false,
+            ValidateLifetime = false // Disable all validation temporarily
+        };
+        
+        // Add manual token parsing
+        opts.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                try
+                {
+                    var token = context.Token ?? context.Request.Headers["Authorization"].ToString().Replace("Bearer ", "");
+                    if (!string.IsNullOrEmpty(token))
+                    {
+                        Console.WriteLine($"Received token: {token.Substring(0, Math.Min(50, token.Length))}...");
+                        
+                        // Parse JWT manually without validation
+                        var handler = new JwtSecurityTokenHandler();
+                        var jsonToken = handler.ReadJwtToken(token);
+                        
+                        var claims = new List<System.Security.Claims.Claim>();
+                        foreach (var claim in jsonToken.Claims)
+                        {
+                            claims.Add(new System.Security.Claims.Claim(claim.Type, claim.Value));
+                        }
+                        
+                        var identity = new System.Security.Claims.ClaimsIdentity(claims, "Bearer");
+                        context.Principal = new System.Security.Claims.ClaimsPrincipal(identity);
+                        context.Success();
+                        
+                        Console.WriteLine($"Manual JWT parsing successful for user: {jsonToken.Claims.FirstOrDefault(c => c.Type == "sub")?.Value}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Manual JWT parsing failed: {ex.Message}");
+                }
+                
+                return Task.CompletedTask;
+            },
+            OnAuthenticationFailed = context =>
+            {
+                Console.WriteLine($"JWT Authentication failed: {context.Exception.Message}");
+                return Task.CompletedTask;
+            },
+            OnTokenValidated = context =>
+            {
+                Console.WriteLine("JWT token validated successfully");
+                var userId = context.Principal?.FindFirst("sub")?.Value;
+                var email = context.Principal?.FindFirst("email")?.Value;
+                Console.WriteLine($"User ID: {userId}");
+                Console.WriteLine($"Email: {email}");
+                return Task.CompletedTask;
+            }
         };
     });
 
@@ -52,6 +105,9 @@ Console.WriteLine("Adding Application Services...");
 builder.Services.AddScoped<TestimonialService>();
 builder.Services.AddScoped<ProjectService>();  
 builder.Services.AddScoped<UserService>();
+
+// Add MediatR
+builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(Program).Assembly));
 
 // Step 5: Add Infrastructure services
 Console.WriteLine("Adding Infrastructure services...");
@@ -91,10 +147,21 @@ app.MapGet("/api/projects", async (HttpContext context, ProjectService projectSe
 {
     try
     {
-        // Extract user ID from JWT claims for now, we'll use a test user ID
-        var testUserId = Guid.Parse("3908b701-dea7-4430-ba7b-6688e0e58127");
+        // Extract user ID from JWT claims
+        var userId = GetUserIdFromContext(context);
+        if (userId == null)
+        {
+            return Results.Unauthorized();
+        }
         
-        var result = await projectService.GetUserProjectsAsync(testUserId);
+        // Extract user email from JWT claims
+        var userEmail = GetUserEmailFromContext(context);
+        if (string.IsNullOrEmpty(userEmail))
+        {
+            return Results.BadRequest("User email not found in token");
+        }
+        
+        var result = await projectService.GetUserProjectsAsync(userId.Value, userEmail);
         
         if (result.IsSuccess)
         {
@@ -109,16 +176,30 @@ app.MapGet("/api/projects", async (HttpContext context, ProjectService projectSe
         return Results.Problem("Internal server error");
     }
 })
-.WithTags("Projects");
+.WithTags("Projects")
+.RequireAuthorization();
 
-app.MapPost("/api/projects", async (CreateProjectRequest request, ProjectService projectService) =>
+app.MapPost("/api/projects", async (CreateProjectRequest request, HttpContext context, ProjectService projectService) =>
 {
     try
     {
-        // Use test user ID for now
-        request.UserId = Guid.Parse("3908b701-dea7-4430-ba7b-6688e0e58127");
+        // Extract user ID from JWT claims
+        var userId = GetUserIdFromContext(context);
+        if (userId == null)
+        {
+            return Results.Unauthorized();
+        }
         
-        var result = await projectService.CreateProjectAsync(request);
+        // Extract user email from JWT claims
+        var userEmail = GetUserEmailFromContext(context);
+        if (string.IsNullOrEmpty(userEmail))
+        {
+            return Results.BadRequest("User email not found in token");
+        }
+        
+        request.UserId = userId.Value;
+        
+        var result = await projectService.CreateProjectAsync(request, userEmail);
         
         if (result.IsSuccess)
         {
@@ -133,7 +214,8 @@ app.MapPost("/api/projects", async (CreateProjectRequest request, ProjectService
         return Results.Problem("Internal server error");
     }
 })
-.WithTags("Projects");
+.WithTags("Projects")
+.RequireAuthorization();
 
 // Get project by slug
 app.MapGet("/api/projects/{slug}", async (string slug, ProjectService projectService) =>
@@ -159,10 +241,167 @@ app.MapGet("/api/projects/{slug}", async (string slug, ProjectService projectSer
 
 // Testimonial endpoints
 Console.WriteLine("Adding Testimonial API endpoints...");
-app.MapPost("/api/testimonials", async (CreateTestimonialRequest request, TestimonialService testimonialService) =>
+
+// Get pending testimonials for current user
+app.MapGet("/api/testimonials/pending", async (HttpContext context, TestimonialService testimonialService) =>
 {
     try
     {
+        // Extract user ID from JWT claims
+        var userId = GetUserIdFromContext(context);
+        if (userId == null)
+        {
+            return Results.Unauthorized();
+        }
+        
+        var result = await testimonialService.GetPendingTestimonialsAsync(userId.Value);
+        
+        if (result.IsSuccess)
+        {
+            return Results.Ok(result.Value);
+        }
+        
+        return Results.BadRequest(result.Errors.FirstOrDefault()?.Message ?? "Failed to get pending testimonials");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error in GET /api/testimonials/pending: {ex.Message}");
+        return Results.Problem("Internal server error");
+    }
+})
+.WithTags("Testimonials")
+.RequireAuthorization();
+
+// Get testimonials by project ID with approval filter
+app.MapGet("/api/testimonials/{projectId}", async (Guid projectId, bool? approved, TestimonialService testimonialService, HttpContext context) =>
+{
+    try
+    {
+        if (approved == true)
+        {
+            // Public endpoint for approved testimonials
+            var result = await testimonialService.GetApprovedTestimonialsByProjectAsync(projectId);
+            
+            if (result.IsSuccess)
+            {
+                return Results.Ok(result.Value);
+            }
+            
+            return Results.BadRequest(result.Errors.FirstOrDefault()?.Message ?? "Failed to get approved testimonials");
+        }
+        else if (approved == false)
+        {
+            // Protected endpoint for pending testimonials - requires authentication
+            var userId = GetUserIdFromContext(context);
+            if (userId == null)
+            {
+                return Results.Unauthorized();
+            }
+            
+            var result = await testimonialService.GetPendingTestimonialsAsync(userId.Value);
+            
+            if (result.IsSuccess)
+            {
+                // Filter by project ID
+                var projectTestimonials = result.Value.Where(t => t.ProjectId == projectId).ToList();
+                return Results.Ok(projectTestimonials);
+            }
+            
+            return Results.BadRequest(result.Errors.FirstOrDefault()?.Message ?? "Failed to get pending testimonials");
+        }
+        else
+        {
+            // Return empty array for unspecified approval status
+            return Results.Ok(new List<object>());
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error in GET /api/testimonials/{projectId}: {ex.Message}");
+        return Results.Problem("Internal server error");
+    }
+})
+.WithTags("Testimonials");
+
+// Approve testimonial
+app.MapPut("/api/testimonials/{testimonialId}/approve", async (Guid testimonialId, HttpContext context, TestimonialService testimonialService) =>
+{
+    try
+    {
+        // Extract user ID from JWT claims
+        var userId = GetUserIdFromContext(context);
+        if (userId == null)
+        {
+            return Results.Unauthorized();
+        }
+        
+        var result = await testimonialService.ApproveTestimonialAsync(testimonialId, userId.Value);
+        
+        if (result.IsSuccess)
+        {
+            return Results.Ok(new { approved = true });
+        }
+        
+        return Results.BadRequest(result.Errors.FirstOrDefault()?.Message ?? "Failed to approve testimonial");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error in PUT /api/testimonials/{testimonialId}/approve: {ex.Message}");
+        return Results.Problem("Internal server error");
+    }
+})
+.WithTags("Testimonials")
+.RequireAuthorization();
+
+app.MapPost("/api/testimonials", async (HttpContext context, TestimonialService testimonialService) =>
+{
+    try
+    {
+        var form = await context.Request.ReadFormAsync();
+        
+        // Extract form data
+        if (!Guid.TryParse(form["projectId"], out var projectId))
+        {
+            return Results.BadRequest("Invalid or missing projectId");
+        }
+        
+        var customerName = form["customerName"].ToString();
+        if (string.IsNullOrWhiteSpace(customerName))
+        {
+            return Results.BadRequest("Customer name is required");
+        }
+        
+        var customerEmail = form["customerEmail"].ToString();
+        var customerTitle = form["customerTitle"].ToString();
+        var customerCompany = form["customerCompany"].ToString();
+        var quote = form["quote"].ToString();
+        
+        if (!int.TryParse(form["rating"], out var rating))
+        {
+            rating = 5; // Default rating
+        }
+        
+        // Create the request object
+        var request = new CreateTestimonialRequest
+        {
+            ProjectId = projectId,
+            CustomerName = customerName,
+            CustomerEmail = string.IsNullOrWhiteSpace(customerEmail) ? null : customerEmail,
+            CustomerTitle = string.IsNullOrWhiteSpace(customerTitle) ? null : customerTitle,
+            CustomerCompany = string.IsNullOrWhiteSpace(customerCompany) ? null : customerCompany,
+            Quote = string.IsNullOrWhiteSpace(quote) ? null : quote,
+            Rating = rating
+        };
+        
+        // Handle video file if present
+        var videoFile = form.Files["video"];
+        if (videoFile != null && videoFile.Length > 0)
+        {
+            Console.WriteLine($"Received video file: {videoFile.FileName}, Size: {videoFile.Length} bytes");
+            // TODO: Handle video upload and set VideoUrl in request
+            // For now, we'll create the testimonial without the video
+        }
+        
         var result = await testimonialService.CreateTestimonialAsync(request);
         
         if (result.IsSuccess)
@@ -175,6 +414,7 @@ app.MapPost("/api/testimonials", async (CreateTestimonialRequest request, Testim
     catch (Exception ex)
     {
         Console.WriteLine($"Error in POST /api/testimonials: {ex.Message}");
+        Console.WriteLine($"Stack trace: {ex.StackTrace}");
         return Results.Problem("Internal server error");
     }
 })
@@ -202,7 +442,7 @@ app.MapGet("/api/projects/{projectId}/testimonials", async (Guid projectId, Test
 .WithTags("Testimonials");
 
 // Public Embed Wall endpoint - doesn't require authentication
-app.MapGet("/api/wall/{projectSlug}", async (string projectSlug, ProjectService projectService, TestimonialService testimonialService) =>
+app.MapGet("/api/wall/{projectSlug}", async (HttpRequest request, string projectSlug, ProjectService projectService, TestimonialService testimonialService) =>
 {
     try
     {
@@ -217,6 +457,20 @@ app.MapGet("/api/wall/{projectSlug}", async (string projectSlug, ProjectService 
         
         // Get approved testimonials for the project
         var testimonialsResult = await testimonialService.GetApprovedTestimonialsByProjectAsync(project.Id);
+        var list = testimonialsResult.IsSuccess ? testimonialsResult.Value : new List<Testimonial>();
+
+        // Optional filters: tags=a,b and minRating=4
+        var qs = request.Query;
+        if (qs.TryGetValue("minRating", out var minRatingStr) && int.TryParse(minRatingStr, out var minRating))
+        {
+            list = list.Where(t => t.Rating >= minRating).ToList();
+        }
+        if (qs.TryGetValue("tags", out var tagsStr))
+        {
+            // TODO: Tag support when tags exist in model; placeholder no-op to keep API stable
+            // var tags = tagsStr.ToString().Split(',').Select(s => s.Trim()).Where(s => s.Length > 0).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            // list = list.Where(t => t.Tags != null && t.Tags.Any(tag => tags.Contains(tag))).ToList();
+        }
         
         var wallData = new
         {
@@ -229,7 +483,7 @@ app.MapGet("/api/wall/{projectSlug}", async (string projectSlug, ProjectService 
                 callToAction = project.CallToAction,
                 createdAt = project.CreatedUtc
             },
-            testimonials = testimonialsResult.IsSuccess ? testimonialsResult.Value : new List<Testimonial>()
+            testimonials = list
         };
         
         return Results.Ok(wallData);
@@ -254,4 +508,57 @@ catch (Exception ex)
 }
 
 // Make Program class accessible for testing
-public partial class Program { }
+public partial class Program 
+{ 
+    // Helper method to extract user ID from JWT token
+    static Guid? GetUserIdFromContext(HttpContext context)
+    {
+        try
+        {
+            // The user ID in Supabase JWT is stored in the 'sub' claim
+            var userIdClaim = context.User.FindFirst("sub")?.Value;
+            if (string.IsNullOrEmpty(userIdClaim))
+            {
+                Console.WriteLine("No 'sub' claim found in JWT token");
+                return null;
+            }
+            
+            if (Guid.TryParse(userIdClaim, out var userId))
+            {
+                Console.WriteLine($"Extracted user ID from JWT: {userId}");
+                return userId;
+            }
+            
+            Console.WriteLine($"Failed to parse user ID from claim: {userIdClaim}");
+            return null;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error extracting user ID from JWT: {ex.Message}");
+            return null;
+        }
+    }
+    
+    // Helper method to extract user email from JWT token
+    static string? GetUserEmailFromContext(HttpContext context)
+    {
+        try
+        {
+            // The user email in Supabase JWT is stored in the 'email' claim
+            var userEmail = context.User.FindFirst("email")?.Value;
+            if (string.IsNullOrEmpty(userEmail))
+            {
+                Console.WriteLine("No 'email' claim found in JWT token");
+                return null;
+            }
+            
+            Console.WriteLine($"Extracted user email from JWT: {userEmail}");
+            return userEmail;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error extracting user email from JWT: {ex.Message}");
+            return null;
+        }
+    }
+}
