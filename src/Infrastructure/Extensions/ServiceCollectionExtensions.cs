@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Infrastructure.Services;
 using TrustLoops.Infrastructure.Services;
 using Supabase;
+using Infrastructure.Background;
 
 namespace Infrastructure.Extensions;
 

@@ -41,6 +41,7 @@ export default function Dashboard() {
   const [approvingIds, setApprovingIds] = useState<Set<string>>(new Set())
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [creatingProject, setCreatingProject] = useState(false)
+  const [upgradePrompt, setUpgradePrompt] = useState<string | null>(null)
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<CreateProjectForm>()
   
@@ -181,6 +182,27 @@ export default function Dashboard() {
         newSet.delete(testimonialId)
         return newSet
       })
+    }
+  }
+
+  const runAi = async (testimonialId: string) => {
+    try {
+      const headers = await getAuthHeaders()
+      const res = await fetch(`${apiBaseUrl}/api/testimonials/${testimonialId}/ai/process`, {
+        method: 'POST',
+        headers
+      })
+      if (res.status === 202) {
+        alert('AI processing started. Check back in a minute.')
+      } else if (res.status === 402) {
+        setUpgradePrompt('AI enrichment is a Pro feature. Please upgrade to use this.')
+      } else {
+        const msg = await res.text()
+        alert(`Failed to start AI processing: ${msg}`)
+      }
+    } catch (e) {
+      console.error('AI enqueue failed', e)
+      alert('Failed to start AI processing')
     }
   }
 
@@ -376,6 +398,12 @@ export default function Dashboard() {
                       >
                         {approvingIds.has(testimonial.id) ? 'Approving...' : 'Approve'}
                       </button>
+                      <button
+                        onClick={() => runAi(testimonial.id)}
+                        className="ml-2 px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors"
+                      >
+                        Run AI
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -442,6 +470,19 @@ export default function Dashboard() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {upgradePrompt && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-sm w-full">
+            <h3 className="text-lg font-semibold mb-2">Upgrade required</h3>
+            <p className="text-gray-700 mb-4">{upgradePrompt}</p>
+            <div className="flex justify-end gap-2">
+              <button className="px-3 py-2 rounded bg-gray-200" onClick={() => setUpgradePrompt(null)}>Close</button>
+              <a className="px-3 py-2 rounded bg-purple-600 text-white" href="/billing" onClick={() => setUpgradePrompt(null)}>Upgrade</a>
             </div>
           </div>
         </div>

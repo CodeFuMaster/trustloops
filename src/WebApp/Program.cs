@@ -7,6 +7,7 @@ using Infrastructure.Extensions;
 using Shared.Models;
 using MediatR;
 using Infrastructure.Services;
+using TrustLoops.Infrastructure.Billing;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -355,11 +356,22 @@ app.MapPut("/api/testimonials/{testimonialId}/approve", async (Guid testimonialI
 .RequireAuthorization();
 
 // Enqueue AI enrichment for a testimonial (Pro-gated in future)
-app.MapPost("/api/testimonials/{testimonialId}/ai/process", async (Guid testimonialId, IAiEnrichmentService ai, HttpContext context) =>
+app.MapPost("/api/testimonials/{testimonialId}/ai/process", async (Guid testimonialId, IAiEnrichmentService ai, HttpContext context, TrustLoops.Infrastructure.Services.ISupabaseClient supabase) =>
 {
     try
     {
-        // Future: validate user subscription plan (Pro)
+        // Gate to Pro plan
+        var userId = GetUserIdFromContext(context);
+        if (userId == null) return Results.Unauthorized();
+        var user = await supabase.GetUserByIdAsync(userId.Value);
+        var plan = user?.PlanType ?? "free";
+        var isPro = string.Equals(plan, "testimonialhub_pro", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(plan, "trustloops_bundle", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(plan, "pro", StringComparison.OrdinalIgnoreCase);
+        if (!isPro)
+        {
+            return Results.StatusCode(402); // Payment Required
+        }
         var jobId = await ai.EnqueueAsync(testimonialId);
         return Results.Accepted($"/api/ai-jobs/{jobId}", new { jobId, testimonialId, status = "queued" });
     }
@@ -514,6 +526,27 @@ app.MapGet("/api/wall/{projectSlug}", async (HttpRequest request, string project
 })
 .WithTags("Wall")
 .AllowAnonymous(); // This endpoint should be public
+
+// LemonSqueezy webhook (plan updates)
+app.MapPost("/api/webhooks/lemonsqueezy", async (HttpRequest request, TrustLoops.Infrastructure.Services.ISupabaseClient supabase, ILogger<LemonWebhookHandler> logger) =>
+{
+    try
+    {
+        using var reader = new StreamReader(request.Body);
+        var payload = await reader.ReadToEndAsync();
+        var signature = request.Headers["X-Signature"].ToString();
+        var handler = new LemonWebhookHandler(supabase, logger);
+        var ok = await handler.HandleWebhookAsync(payload, signature);
+        return ok ? Results.Ok() : Results.BadRequest();
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error in LemonSqueezy webhook: {ex.Message}");
+        return Results.Problem();
+    }
+})
+.WithTags("Billing")
+.AllowAnonymous();
 
 try
 {

@@ -843,6 +843,23 @@ public class SupabaseClient : ISupabaseClient
         }
     }
 
+    public async Task<SupabaseUser?> GetUserByIdAsync(Guid id)
+    {
+        try
+        {
+            var result = await _client
+                .From<SupabaseUser>()
+                .Where(u => u.Id == id)
+                .Single();
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting user by id: {UserId}", id);
+            return null;
+        }
+    }
+
     public async Task<bool> UpdateUserBillingAsync(Guid userId, UserBillingUpdate billingUpdate)
     {
         try

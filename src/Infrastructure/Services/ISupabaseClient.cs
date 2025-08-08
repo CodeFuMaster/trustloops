@@ -26,6 +26,7 @@ public interface ISupabaseClient
 
     // User methods
     Task<SupabaseUser> UpsertUserDirectly(Guid id, string email);
+    Task<SupabaseUser?> GetUserByIdAsync(Guid id);
 
     // Billing methods
     Task<SupabaseUser?> GetUserByCustomerIdAsync(string customerId);
