@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '../contexts/AuthContext';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'https://localhost:65173';
 
@@ -22,10 +23,15 @@ export function useProjects() {
   return useQuery({
     queryKey: ['projects'],
     queryFn: async (): Promise<Project[]> => {
-      const token = localStorage.getItem('supabase.auth.token');
+      const { data: { session }, error } = await supabase.auth.getSession();
+      
+      if (error || !session?.access_token) {
+        throw new Error('User not authenticated');
+      }
+      
       const response = await fetch(`${API_BASE}/api/projects`, {
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
         },
       });
@@ -44,11 +50,16 @@ export function useCreateProject() {
   
   return useMutation({
     mutationFn: async (data: CreateProjectRequest): Promise<Project> => {
-      const token = localStorage.getItem('supabase.auth.token');
+      const { data: { session }, error } = await supabase.auth.getSession();
+      
+      if (error || !session?.access_token) {
+        throw new Error('User not authenticated');
+      }
+      
       const response = await fetch(`${API_BASE}/api/projects`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(data),

@@ -19,7 +19,7 @@ public class ProjectService
         _supabaseClient = supabaseClient;
     }
 
-    public async Task<Result<Project>> CreateProjectAsync(CreateProjectRequest request)
+    public async Task<Result<Project>> CreateProjectAsync(CreateProjectRequest request, string userEmail)
     {
         try
         {
@@ -32,6 +32,7 @@ public class ProjectService
                     request.Name, 
                     request.Description ?? "", 
                     request.UserId,
+                    userEmail,
                     request.CallToAction ?? "Share your experience"
                 );
                 _logger.LogInformation("Created project {ProjectId} with slug {Slug}", project.Id, project.Slug);
@@ -78,17 +79,30 @@ public class ProjectService
         }
     }
 
-    public async Task<Result<List<Project>>> GetUserProjectsAsync(Guid userId)
+    public async Task<Result<List<Project>>> GetUserProjectsAsync(Guid userId, string userEmail)
     {
         try
         {
-            _logger.LogInformation("Getting projects for user {UserId}", userId);
+            _logger.LogInformation("Getting projects for user {UserId} with email {Email}", userId, userEmail);
             
             if (_supabaseClient != null)
             {
-                // Use new Supabase client
-                var projects = await _supabaseClient.GetProjectsAsync(userId);
-                _logger.LogInformation("Found {ProjectCount} projects for user {UserId}", projects.Count, userId);
+                // First, we need to get the actual database user ID using the email
+                // The JWT user ID might be different from the database user ID
+                _logger.LogInformation("Looking up actual database user ID for JWT user {JwtUserId} with email {Email}", userId, userEmail);
+                
+                var actualUser = await _supabaseClient.UpsertUserDirectly(userId, userEmail);
+                var actualUserId = actualUser.Id;
+                
+                if (actualUserId != userId)
+                {
+                    _logger.LogInformation("User ID mismatch detected - JWT: {JwtUserId}, Database: {DatabaseUserId}", userId, actualUserId);
+                }
+                
+                // Use the actual database user ID to get projects
+                var projects = await _supabaseClient.GetProjectsAsync(actualUserId);
+                _logger.LogInformation("Found {ProjectCount} projects for database user {DatabaseUserId}", projects.Count, actualUserId);
+                
                 return Result.Ok(projects);
             }
             else

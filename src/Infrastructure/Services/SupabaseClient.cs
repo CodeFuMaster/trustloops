@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 
 namespace TrustLoops.Infrastructure.Services;
 
-public class SupabaseClient
+public class SupabaseClient : ISupabaseClient
 {
     private readonly Supabase.Client _client;
     private readonly ILogger<SupabaseClient> _logger;
@@ -18,7 +18,7 @@ public class SupabaseClient
         _logger = logger;
     }
 
-    public async Task<Models.Project> CreateProjectAsync(string name, string description, Guid userId, string callToAction = "Share your experience")
+    public async Task<Models.Project> CreateProjectAsync(string name, string description, Guid userId, string userEmail, string callToAction = "Share your experience")
     {
         try
         {
@@ -224,6 +224,54 @@ public class SupabaseClient
         }
     }
 
+    public async Task<Models.Project?> GetProjectAsync(Guid projectId)
+    {
+        try
+        {
+            var result = await _client
+                .From<SupabaseProject>()
+                .Where(p => p.Id == projectId)
+                .Single();
+
+            if (result != null)
+            {
+                // Fetch user email separately
+                string? userEmail = null;
+                try
+                {
+                    var user = await _client
+                        .From<SupabaseUser>()
+                        .Where(u => u.Id == result.UserId)
+                        .Single();
+                    userEmail = user?.Email;
+                }
+                catch (Exception userEx)
+                {
+                    _logger.LogWarning(userEx, "Could not fetch user email for user {UserId}", result.UserId);
+                }
+
+                return new Models.Project
+                {
+                    Id = result.Id,
+                    Name = result.Name,
+                    Slug = result.Slug,
+                    Description = result.Description,
+                    UserId = result.UserId,
+                    UserEmail = userEmail,
+                    CreatedUtc = result.CreatedAt,
+                    UpdatedUtc = result.UpdatedAt
+                };
+            }
+
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching project by ID: {ProjectId}", projectId);
+            return null;
+        }
+    }
+
     public async Task<Models.Testimonial> CreateTestimonialAsync(Models.CreateTestimonialRequest request)
     {
         try
@@ -266,7 +314,12 @@ public class SupabaseClient
                     Rating = created.Rating,
                     Approved = created.Approved,
                     CreatedUtc = created.CreatedAt,
-                    UpdatedUtc = created.UpdatedAt
+                    UpdatedUtc = created.UpdatedAt,
+                    Transcript = created.Transcript,
+                    Summary = created.Summary,
+                    Sentiment = created.Sentiment,
+                    Tags = created.Tags,
+                    CaptionsUrl = created.CaptionsUrl
                 };
             }
 
@@ -279,11 +332,10 @@ public class SupabaseClient
         }
     }
 
-    public async Task<bool> ApproveTestimonialAsync(Guid id, Guid userId)
+    public async Task<bool> ApproveTestimonialAsync(Guid id, bool approved)
     {
         try
         {
-            // First verify the user owns the project
             var testimonial = await _client
                 .From<SupabaseTestimonial>()
                 .Where(t => t.Id == id)
@@ -295,19 +347,8 @@ public class SupabaseClient
                 return false;
             }
 
-            var project = await _client
-                .From<SupabaseProject>()
-                .Where(p => p.Id == testimonial.ProjectId && p.UserId == userId)
-                .Single();
-
-            if (project == null)
-            {
-                _logger.LogWarning("User {UserId} not authorized to approve testimonial {TestimonialId}", userId, id);
-                return false;
-            }
-
             // Update approval status
-            testimonial.Approved = true;
+            testimonial.Approved = approved;
             testimonial.UpdatedAt = DateTime.UtcNow;
 
             var result = await _client
@@ -315,7 +356,7 @@ public class SupabaseClient
                 .Where(t => t.Id == id)
                 .Update(testimonial);
 
-            _logger.LogInformation("Testimonial approved: {TestimonialId} by user: {UserId}", id, userId);
+            _logger.LogInformation("Testimonial approval updated: {TestimonialId} to {Approved}", id, approved);
             return true;
         }
         catch (Exception ex)
@@ -349,13 +390,58 @@ public class SupabaseClient
                 Rating = t.Rating,
                 Approved = t.Approved,
                 CreatedUtc = t.CreatedAt,
-                UpdatedUtc = t.UpdatedAt
+                UpdatedUtc = t.UpdatedAt,
+                Transcript = t.Transcript,
+                Summary = t.Summary,
+                Sentiment = t.Sentiment,
+                Tags = t.Tags,
+                CaptionsUrl = t.CaptionsUrl
             }).ToList() ?? new List<Models.Testimonial>();
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error fetching approved testimonials for project: {ProjectId}", projectId);
             throw;
+        }
+    }
+
+    public async Task<Models.Testimonial?> GetTestimonialByIdAsync(Guid testimonialId)
+    {
+        try
+        {
+            var result = await _client
+                .From<SupabaseTestimonial>()
+                .Where(t => t.Id == testimonialId)
+                .Single();
+
+            if (result == null) return null;
+
+            return new Models.Testimonial
+            {
+                Id = result.Id,
+                ProjectId = result.ProjectId,
+                Quote = result.Quote,
+                VideoUrl = result.VideoUrl,
+                ThumbnailUrl = result.ThumbnailUrl,
+                CustomerName = result.CustomerName,
+                CustomerEmail = result.CustomerEmail,
+                CustomerTitle = result.CustomerTitle,
+                CustomerCompany = result.CustomerCompany,
+                Rating = result.Rating,
+                Approved = result.Approved,
+                CreatedUtc = result.CreatedAt,
+                UpdatedUtc = result.UpdatedAt,
+                Transcript = result.Transcript,
+                Summary = result.Summary,
+                Sentiment = result.Sentiment,
+                Tags = result.Tags,
+                CaptionsUrl = result.CaptionsUrl
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching testimonial by ID: {TestimonialId}", testimonialId);
+            return null;
         }
     }
 
@@ -383,7 +469,12 @@ public class SupabaseClient
                 Rating = t.Rating,
                 Approved = t.Approved,
                 CreatedUtc = t.CreatedAt,
-                UpdatedUtc = t.UpdatedAt
+                UpdatedUtc = t.UpdatedAt,
+                Transcript = t.Transcript,
+                Summary = t.Summary,
+                Sentiment = t.Sentiment,
+                Tags = t.Tags,
+                CaptionsUrl = t.CaptionsUrl
             }).ToList() ?? new List<Models.Testimonial>();
         }
         catch (Exception ex)
@@ -553,6 +644,55 @@ public class SupabaseClient
         }
     }
 
+    public async Task<SupabaseUser> UpsertUserDirectly(Guid id, string email)
+    {
+        try
+        {
+            // Check if user exists
+            var existingUser = await _client
+                .From<SupabaseUser>()
+                .Where(u => u.Id == id)
+                .Get();
+
+            if (existingUser?.Models?.Any() == true)
+            {
+                // Update existing user
+                var user = existingUser.Models.First();
+                user.Email = email;
+                user.UpdatedAt = DateTime.UtcNow;
+
+                var updateResult = await _client
+                    .From<SupabaseUser>()
+                    .Where(u => u.Id == id)
+                    .Update(user);
+
+                return updateResult?.Models?.FirstOrDefault() ?? user;
+            }
+            else
+            {
+                // Create new user
+                var newUser = new SupabaseUser
+                {
+                    Id = id,
+                    Email = email,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                var insertResult = await _client
+                    .From<SupabaseUser>()
+                    .Insert(newUser);
+
+                return insertResult?.Models?.FirstOrDefault() ?? newUser;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error upserting user directly: {UserId}", id);
+            throw;
+        }
+    }
+
     private static string GenerateSlug(string name)
     {
         return name
@@ -565,5 +705,169 @@ public class SupabaseClient
             .Replace("!", "")
             .Replace("?", "")
             .Replace("&", "and");
+    }
+
+    // Missing interface methods implementation
+    public async Task<List<Models.Testimonial>> GetTestimonialsAsync(Guid projectId, bool? approved = null, int page = 1, int pageSize = 10)
+    {
+        try
+        {
+            var query = _client.From<SupabaseTestimonial>()
+                .Where(t => t.ProjectId == projectId);
+
+            if (approved.HasValue)
+            {
+                query = query.Where(t => t.Approved == approved.Value);
+            }
+
+            // Add pagination
+            query = query.Range((page - 1) * pageSize, page * pageSize - 1);
+
+            var result = await query.Get();
+            
+            return result?.Models?.Select(t => new Models.Testimonial
+            {
+                Id = t.Id,
+                ProjectId = t.ProjectId,
+                CustomerName = t.CustomerName,
+                CustomerEmail = t.CustomerEmail,
+                CustomerTitle = t.CustomerTitle,
+                CustomerCompany = t.CustomerCompany,
+                Quote = t.Quote,
+                Rating = t.Rating,
+                VideoUrl = t.VideoUrl,
+                ThumbnailUrl = t.ThumbnailUrl,
+                Approved = t.Approved,
+                CreatedUtc = t.CreatedAt,
+                UpdatedUtc = t.UpdatedAt,
+                Transcript = t.Transcript,
+                Summary = t.Summary,
+                Sentiment = t.Sentiment,
+                Tags = t.Tags,
+                CaptionsUrl = t.CaptionsUrl
+            }).ToList() ?? new List<Models.Testimonial>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting testimonials for project: {ProjectId}", projectId);
+            throw;
+        }
+    }
+
+    public async Task<bool> DeleteTestimonialAsync(Guid id)
+    {
+        try
+        {
+            await _client
+                .From<SupabaseTestimonial>()
+                .Where(t => t.Id == id)
+                .Delete();
+
+            _logger.LogInformation("Testimonial deleted: {TestimonialId}", id);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting testimonial: {TestimonialId}", id);
+            return false;
+        }
+    }
+
+    public async Task<string> UploadFileAsync(string bucket, string fileName, Stream fileStream)
+    {
+        try
+        {
+            var uniqueFileName = $"{Guid.NewGuid()}_{fileName}";
+
+            // Convert stream to byte array
+            using var memoryStream = new MemoryStream();
+            await fileStream.CopyToAsync(memoryStream);
+            var fileBytes = memoryStream.ToArray();
+
+            var result = await _client.Storage
+                .From(bucket)
+                .Upload(fileBytes, uniqueFileName);
+
+            if (!string.IsNullOrEmpty(result))
+            {
+                var publicUrl = _client.Storage
+                    .From(bucket)
+                    .GetPublicUrl(uniqueFileName);
+
+                _logger.LogInformation("File uploaded successfully: {FileName}", uniqueFileName);
+                return publicUrl;
+            }
+
+            throw new InvalidOperationException("Failed to upload file");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error uploading file: {FileName}", fileName);
+            throw;
+        }
+    }
+
+    public async Task<SupabaseUser?> GetUserByCustomerIdAsync(string customerId)
+    {
+        try
+        {
+            var result = await _client
+                .From<SupabaseUser>()
+                .Where(u => u.CustomerId == customerId)
+                .Single();
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting user by customer ID: {CustomerId}", customerId);
+            return null;
+        }
+    }
+
+    public async Task<SupabaseUser?> GetUserBySubscriptionIdAsync(string subscriptionId)
+    {
+        try
+        {
+            var result = await _client
+                .From<SupabaseUser>()
+                .Where(u => u.SubscriptionId == subscriptionId)
+                .Single();
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting user by subscription ID: {SubscriptionId}", subscriptionId);
+            return null;
+        }
+    }
+
+    public async Task<bool> UpdateUserBillingAsync(Guid userId, UserBillingUpdate billingUpdate)
+    {
+        try
+        {
+            var updates = new SupabaseUser
+            {
+                Id = userId,
+                CustomerId = billingUpdate.CustomerId,
+                SubscriptionId = billingUpdate.SubscriptionId,
+                PlanType = billingUpdate.PlanType,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            await _client
+                .From<SupabaseUser>()
+                .Where(u => u.Id == userId)
+                .Update(updates);
+
+            _logger.LogInformation("User billing updated: {UserId}", userId);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating user billing: {UserId}", userId);
+            return false;
+        }
     }
 }

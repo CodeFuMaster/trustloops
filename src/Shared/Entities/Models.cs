@@ -29,6 +29,12 @@ public record Testimonial
     public bool Approved { get; init; } = false;
     public DateTime CreatedUtc { get; init; }
     public DateTime UpdatedUtc { get; init; }
+    // AI enrichment
+    public string? Transcript { get; init; }
+    public string? Summary { get; init; }
+    public string? Sentiment { get; init; }
+    public string[]? Tags { get; init; }
+    public string? CaptionsUrl { get; init; }
     
     // Navigation properties
     public Project? Project { get; init; }

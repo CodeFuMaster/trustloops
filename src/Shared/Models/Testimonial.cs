@@ -16,6 +16,13 @@ public class Testimonial
     public bool Approved { get; set; } = false;
     public DateTime CreatedUtc { get; set; }
     public DateTime UpdatedUtc { get; set; }
+
+    // AI enrichment fields (TASK 3)
+    public string? Transcript { get; set; }
+    public string? Summary { get; set; }
+    public string? Sentiment { get; set; }
+    public string[]? Tags { get; set; }
+    public string? CaptionsUrl { get; set; }
     
     // Relations
     public Project? Project { get; set; }

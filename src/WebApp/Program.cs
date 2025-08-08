@@ -6,6 +6,7 @@ using WebApp.Services;
 using Infrastructure.Extensions;
 using Shared.Models;
 using MediatR;
+using Infrastructure.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -353,6 +354,24 @@ app.MapPut("/api/testimonials/{testimonialId}/approve", async (Guid testimonialI
 .WithTags("Testimonials")
 .RequireAuthorization();
 
+// Enqueue AI enrichment for a testimonial (Pro-gated in future)
+app.MapPost("/api/testimonials/{testimonialId}/ai/process", async (Guid testimonialId, IAiEnrichmentService ai, HttpContext context) =>
+{
+    try
+    {
+        // Future: validate user subscription plan (Pro)
+        var jobId = await ai.EnqueueAsync(testimonialId);
+        return Results.Accepted($"/api/ai-jobs/{jobId}", new { jobId, testimonialId, status = "queued" });
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error in POST /api/testimonials/{testimonialId}/ai/process: {ex.Message}");
+        return Results.Problem("Failed to enqueue AI processing");
+    }
+})
+.WithTags("AI")
+.RequireAuthorization();
+
 app.MapPost("/api/testimonials", async (HttpContext context, TestimonialService testimonialService) =>
 {
     try
@@ -467,9 +486,8 @@ app.MapGet("/api/wall/{projectSlug}", async (HttpRequest request, string project
         }
         if (qs.TryGetValue("tags", out var tagsStr))
         {
-            // TODO: Tag support when tags exist in model; placeholder no-op to keep API stable
-            // var tags = tagsStr.ToString().Split(',').Select(s => s.Trim()).Where(s => s.Length > 0).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            // list = list.Where(t => t.Tags != null && t.Tags.Any(tag => tags.Contains(tag))).ToList();
+            var tags = tagsStr.ToString().Split(',').Select(s => s.Trim()).Where(s => s.Length > 0).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            list = list.Where(t => (t.Tags ?? Array.Empty<string>()).Any(tag => tags.Contains(tag))).ToList();
         }
         
         var wallData = new

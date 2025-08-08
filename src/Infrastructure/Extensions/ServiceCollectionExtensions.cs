@@ -14,6 +14,22 @@ public static class ServiceCollectionExtensions
         // Register Supabase client wrapper (simplified for testing)
         services.AddScoped<ISupabaseClientWrapper, SupabaseClientWrapper>();
         
+        // Register Email Service
+        services.AddScoped<IEmailService, EmailService>();
+        
+        // Register Analytics Service
+        services.AddScoped<IAnalyticsService, AnalyticsService>();
+        
+        // Register Theming Service
+        services.AddScoped<IThemingService, ThemingService>();
+        
+        // Register Social Sharing Service
+        services.AddScoped<ISocialSharingService, SocialSharingService>();
+
+    // AI Enrichment services
+    services.AddScoped<IAiEnrichmentService, AiEnrichmentService>();
+    services.AddHostedService<AiEnrichmentWorker>();
+        
         // Register new Supabase client - re-enabled with proper error handling
         var supabaseUrl = configuration["Supabase:Url"];
         var supabaseKey = configuration["Supabase:ServiceKey"];
@@ -32,7 +48,7 @@ public static class ServiceCollectionExtensions
                     return new Supabase.Client(supabaseUrl, supabaseKey, options);
                 });
                 
-                services.AddScoped<SupabaseClient>();
+                services.AddScoped<TrustLoops.Infrastructure.Services.ISupabaseClient, TrustLoops.Infrastructure.Services.SupabaseClient>();
                 Console.WriteLine("Supabase client services registered successfully");
             }
             catch (Exception ex)

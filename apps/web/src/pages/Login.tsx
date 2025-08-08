@@ -5,18 +5,53 @@ export default function Login() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
+  const [countdown, setCountdown] = useState(0)
   const { signIn } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    if (countdown > 0) {
+      setMessage(`Please wait ${countdown} seconds before requesting another link`)
+      return
+    }
+    
     setLoading(true)
     setMessage('')
 
     try {
       await signIn(email)
       setMessage('Check your email for the magic link!')
+      
+      // Start countdown to prevent spam
+      setCountdown(20)
+      const timer = setInterval(() => {
+        setCountdown(prev => {
+          if (prev <= 1) {
+            clearInterval(timer)
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
+      
     } catch (error) {
-      setMessage('Error: ' + (error as Error).message)
+      const errorMessage = (error as Error).message
+      if (errorMessage.includes('Too Many Requests') || errorMessage.includes('17 seconds')) {
+        setMessage('Too many requests. Please wait a moment before trying again.')
+        setCountdown(20)
+        const timer = setInterval(() => {
+          setCountdown(prev => {
+            if (prev <= 1) {
+              clearInterval(timer)
+              return 0
+            }
+            return prev - 1
+          })
+        }, 1000)
+      } else {
+        setMessage('Error: ' + errorMessage)
+      }
     } finally {
       setLoading(false)
     }

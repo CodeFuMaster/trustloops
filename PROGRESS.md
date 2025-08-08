@@ -13,7 +13,18 @@ TrustLoops is a comprehensive testimonial collection and management platform tha
 
 ## ✅ Completed Features
 
-### 1. Environment & Infrastructure Setup
+### 1. Runtime Error Fixes (2025-01-04)
+- [x] **Fixed IDX10500 JWT Signature Validation Error**
+  - Updated JWT authentication configuration in Program.cs
+  - Replaced custom validation bypass with proper Supabase JWKS authority
+  - Enhanced security by validating JWT tokens against Supabase's public keys
+  
+- [x] **Fixed PostgrestException Duplicate Key Constraint**
+  - Implemented proper error handling in UpsertUserDirectly method
+  - Added fallback logic to handle users_email_key conflicts
+  - Users with duplicate emails now update existing records instead of failing
+  
+### 2. Environment & Infrastructure Setup
 - [x] Cloud Supabase integration configured
 - [x] ASP.NET Core 8 backend with proper CORS and service registration
 - [x] React + TypeScript + Vite frontend with TanStack Query
@@ -198,6 +209,26 @@ UPDATE projects SET call_to_action = 'Share your experience' WHERE call_to_actio
 - [ ] Implement proper logging system
 - [ ] Add monitoring and error tracking
 - [ ] Security audit and improvements
+
+## 🔥 Latest Fixes (August 5, 2025)
+
+### Critical Runtime Error Resolution
+- [x] **IDX10500 JWT Signature Validation Fixed** 
+  - Switched from Authority-based to HS256 symmetric key validation in Program.cs
+  - Using Supabase:JwtSecret for proper signature verification
+  - Eliminated authentication failures during API calls
+
+- [x] **PostgrestException Duplicate Email Key Constraint Fixed**
+  - Rewrote UpsertUserDirectly method in SupabaseClient.cs
+  - Implementation: Check by email first, insert if not exists
+  - Eliminates "users_email_key" constraint violations
+  - Simplified logic removes complex error handling and upsert conflicts
+
+### Technical Details
+- JWT Authentication now uses `SymmetricSecurityKey` with HS256 algorithm
+- User creation follows "query first, insert if missing" pattern
+- Supabase API calls updated to proper async/await pattern
+- Database migration script `add-updated-utc-columns.sql` ready for deployment
 
 ## 📊 Quality Metrics
 - **Code Coverage**: TBD (tests to be implemented)

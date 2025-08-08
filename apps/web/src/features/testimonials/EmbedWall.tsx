@@ -208,7 +208,11 @@ export default function EmbedWall() {
                         controls
                         className="w-full h-full object-cover"
                         poster="/video-placeholder.jpg"
-                      />
+                      >
+                        {testimonial.captionsUrl && (
+                          <track kind="captions" src={testimonial.captionsUrl} srcLang="en" label="English" default />
+                        )}
+                      </video>
                     </div>
                   )}
 
@@ -241,6 +245,18 @@ export default function EmbedWall() {
                       <blockquote className="text-gray-800 mb-4 leading-relaxed">
                         "{testimonial.content}"
                       </blockquote>
+                    )}
+
+                    {/* AI info */}
+                    {(testimonial as any).sentiment && (
+                      <div className="mb-2 text-xs text-gray-600">Sentiment: {(testimonial as any).sentiment}</div>
+                    )}
+                    {Array.isArray((testimonial as any).tags) && (testimonial as any).tags.length > 0 && (
+                      <div className="mb-2 flex flex-wrap gap-2">
+                        {(testimonial as any).tags.map((t: string) => (
+                          <span key={t} className="px-2 py-1 text-xs rounded bg-gray-100">#{t}</span>
+                        ))}
+                      </div>
                     )}
 
                     {/* Customer Info */}

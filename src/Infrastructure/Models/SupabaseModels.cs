@@ -12,6 +12,15 @@ public class SupabaseUser : BaseModel
     [Column("email")]
     public string Email { get; set; } = string.Empty;
 
+    [Column("customer_id")]
+    public string? CustomerId { get; set; }
+
+    [Column("subscription_id")]
+    public string? SubscriptionId { get; set; }
+
+    [Column("plan_type")]
+    public string? PlanType { get; set; }
+
     [Column("created_utc")]
     public DateTime CreatedAt { get; set; }
 
@@ -82,6 +91,44 @@ public class SupabaseTestimonial : BaseModel
 
     [Column("approved")]
     public bool Approved { get; set; } = false;
+
+    [Column("created_utc")]
+    public DateTime CreatedAt { get; set; }
+
+    [Column("updated_utc")]
+    public DateTime UpdatedAt { get; set; }
+
+    // AI enrichment columns
+    [Column("transcript")]
+    public string? Transcript { get; set; }
+
+    [Column("summary")]
+    public string? Summary { get; set; }
+
+    [Column("sentiment")]
+    public string? Sentiment { get; set; }
+
+    [Column("tags")]
+    public string[]? Tags { get; set; }
+
+    [Column("captions_url")]
+    public string? CaptionsUrl { get; set; }
+}
+
+[Table("ai_jobs")]
+public class SupabaseAiJob : BaseModel
+{
+    [PrimaryKey("id")]
+    public Guid Id { get; set; }
+
+    [Column("testimonial_id")]
+    public Guid TestimonialId { get; set; }
+
+    [Column("status")]
+    public string Status { get; set; } = "queued"; // queued, processing, done, failed
+
+    [Column("error")]
+    public string? Error { get; set; }
 
     [Column("created_utc")]
     public DateTime CreatedAt { get; set; }

@@ -70,7 +70,12 @@ public class TestimonialService
                     ThumbnailUrl = result.Value.ThumbnailUrl,
                     CreatedUtc = result.Value.CreatedUtc,
                     UpdatedUtc = result.Value.UpdatedUtc,
-                    Approved = result.Value.Approved
+                    Approved = result.Value.Approved,
+                    Transcript = result.Value.Transcript,
+                    Summary = result.Value.Summary,
+                    Sentiment = result.Value.Sentiment,
+                    Tags = result.Value.Tags,
+                    CaptionsUrl = result.Value.CaptionsUrl
                 };
                 
                 return Result.Ok(testimonial);
@@ -120,7 +125,12 @@ public class TestimonialService
                     ThumbnailUrl = t.ThumbnailUrl,
                     CreatedUtc = t.CreatedUtc,
                     UpdatedUtc = t.UpdatedUtc,
-                    Approved = t.Approved
+                    Approved = t.Approved,
+                    Transcript = t.Transcript,
+                    Summary = t.Summary,
+                    Sentiment = t.Sentiment,
+                    Tags = t.Tags,
+                    CaptionsUrl = t.CaptionsUrl
                 }).ToList();
                 
                 return Result.Ok(testimonials);
@@ -177,7 +187,12 @@ public class TestimonialService
                     ThumbnailUrl = t.ThumbnailUrl,
                     CreatedUtc = t.CreatedUtc,
                     UpdatedUtc = t.UpdatedUtc,
-                    Approved = t.Approved
+                    Approved = t.Approved,
+                    Transcript = t.Transcript,
+                    Summary = t.Summary,
+                    Sentiment = t.Sentiment,
+                    Tags = t.Tags,
+                    CaptionsUrl = t.CaptionsUrl
                 }).ToList();
                 
                 return Result.Ok(testimonials);
@@ -198,7 +213,7 @@ public class TestimonialService
             
             if (_supabaseClient != null)
             {
-                var success = await _supabaseClient.ApproveTestimonialAsync(testimonialId, userId);
+                var success = await _supabaseClient.ApproveTestimonialAsync(testimonialId, true);
                 
                 if (success)
                 {

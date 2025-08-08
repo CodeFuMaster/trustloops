@@ -14,7 +14,13 @@ const AuthContext = createContext<AuthContextType | null>(null)
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://your-project.supabase.co'
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'your-anon-key'
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true
+  }
+})
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
@@ -22,7 +28,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      console.log('Initial session check:', { session: !!session, user: !!session?.user, error })
+      if (session?.access_token) {
+        console.log('Access token exists:', session.access_token.substring(0, 50) + '...')
+      } else {
+        console.log('No access token found')
+      }
       setUser(session?.user ?? null)
       setLoading(false)
     })
@@ -30,7 +42,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('Auth state change:', { event, session: !!session, user: !!session?.user })
+      if (session?.access_token) {
+        console.log('New access token:', session.access_token.substring(0, 50) + '...')
+      }
       setUser(session?.user ?? null)
       setLoading(false)
     })
@@ -39,13 +55,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const signIn = async (email: string) => {
+    console.log('Attempting to sign in with email:', email)
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: `http://localhost:5173/dashboard`,
+        emailRedirectTo: `http://localhost:5173/auth/callback`,
       },
     })
-    if (error) throw error
+    if (error) {
+      console.error('Sign in error:', error)
+      throw error
+    }
+    console.log('Sign in OTP sent successfully')
   }
 
   const signOut = async () => {

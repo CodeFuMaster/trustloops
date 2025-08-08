@@ -18,6 +18,9 @@ public class Project
     public bool AutoApprove { get; set; } = false;
     public bool ShowPoweredBy { get; set; } = true;
     
+    // User email for notifications (populated when needed)
+    public string? UserEmail { get; set; }
+    
     // Relations
     public User? User { get; set; }
     public List<Testimonial> Testimonials { get; set; } = new();

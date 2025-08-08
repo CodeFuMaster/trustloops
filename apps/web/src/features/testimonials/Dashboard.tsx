@@ -11,6 +11,9 @@ interface Testimonial {
   customerCompany?: string
   quote?: string
   videoUrl?: string
+  captionsUrl?: string
+  sentiment?: string
+  tags?: string[]
   rating: number
   approved: boolean
   createdUtc: string
@@ -46,10 +49,29 @@ export default function Dashboard() {
 
   // Helper function to get authorization headers
   const getAuthHeaders = async () => {
-    const { data: { session } } = await supabase.auth.getSession()
+    console.log('Getting auth headers...')
+    const { data: { session }, error } = await supabase.auth.getSession()
+    
+    console.log('Session check:', { 
+      session: !!session, 
+      user: !!session?.user, 
+      access_token: !!session?.access_token,
+      error 
+    })
+    
+    if (session?.access_token) {
+      console.log('Access token preview:', session.access_token.substring(0, 50) + '...')
+    }
+    
+    if (!session?.access_token) {
+      console.log('No valid session or access token found')
+      throw new Error('User not authenticated - please log in again')
+    }
+    
+    console.log('Session found, access_token exists:', !!session.access_token)
     return {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${session?.access_token}`
+      'Authorization': `Bearer ${session.access_token}`
     }
   }
 
@@ -83,9 +105,18 @@ export default function Dashboard() {
           }
           setPendingTestimonials(allPendingTestimonials)
         }
+      } else if (projectsResponse.status === 401) {
+        console.error('Authentication failed - user needs to log in again')
+        // Handle authentication error - could redirect to login
+      } else {
+        console.error('Failed to fetch projects:', projectsResponse.status)
       }
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error)
+      if (error instanceof Error && error.message.includes('not authenticated')) {
+        // Handle authentication error
+        console.log('User needs to authenticate')
+      }
     } finally {
       setLoading(false)
     }
@@ -305,7 +336,19 @@ export default function Dashboard() {
                             src={testimonial.videoUrl}
                             controls
                             className="w-full max-w-md rounded-lg"
-                          />
+                          >
+                            {testimonial.captionsUrl && (
+                              <track kind="captions" src={testimonial.captionsUrl} srcLang="en" label="English" default />
+                            )}
+                          </video>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {testimonial.sentiment && (
+                              <span className="px-2 py-1 text-xs rounded bg-gray-100">{testimonial.sentiment}</span>
+                            )}
+                            {testimonial.tags?.map(tag => (
+                              <span key={tag} className="px-2 py-1 text-xs rounded bg-gray-100">#{tag}</span>
+                            ))}
+                          </div>
                         </div>
                       )}
                       
