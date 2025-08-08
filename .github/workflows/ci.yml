@@ -1,110 +1,80 @@
-name: CI/CD Pipeline
+name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, staging, develop, feat/** ]
   pull_request:
-    branches: [ main ]
-
-env:
-  DOTNET_VERSION: '8.0.x'
-  NODE_VERSION: '18'
-  PNPM_VERSION: '8'
+    branches: [ main, staging, develop ]
 
 jobs:
-  test-backend:
+  build-and-test:
     runs-on: ubuntu-latest
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: ${{ env.DOTNET_VERSION }}
-    
-    - name: Restore dependencies
-      run: dotnet restore
-    
-    - name: Build
-      run: dotnet build --no-restore --configuration Release
-    
-    - name: Test
-      run: dotnet test --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage"
-    
-    - name: Upload coverage reports
-      uses: codecov/codecov-action@v3
-      with:
-        file: '**/coverage.cobertura.xml'
-        fail_ci_if_error: true
 
-  test-frontend:
-    runs-on: ubuntu-latest
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ env.NODE_VERSION }}
-    
-    - name: Setup pnpm
-      uses: pnpm/action-setup@v2
-      with:
-        version: ${{ env.PNPM_VERSION }}
-    
-    - name: Install dependencies
-      run: pnpm install --frozen-lockfile
-    
-    - name: Lint
-      run: pnpm run lint
-    
-    - name: Type check
-      run: |
-        cd apps/web
-        pnpm run build
-    
-    - name: Test
-      run: pnpm run test
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: 0
 
-  build-and-deploy:
-    needs: [test-backend, test-frontend]
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: ${{ env.DOTNET_VERSION }}
-    
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ env.NODE_VERSION }}
-    
-    - name: Setup pnpm
-      uses: pnpm/action-setup@v2
-      with:
-        version: ${{ env.PNPM_VERSION }}
-    
-    - name: Build Frontend
-      run: |
-        pnpm install --frozen-lockfile
-        pnpm run build
-    
-    - name: Build Backend
-      run: |
-        dotnet restore
-        dotnet build --configuration Release --no-restore
-    
-    - name: Setup Fly.io CLI
-      uses: superfly/flyctl-actions/setup-flyctl@master
-    
-    - name: Deploy to Fly.io
-      run: flyctl deploy --remote-only
-      env:
-        FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Cache NuGet
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Install frontend deps and browsers
+        working-directory: apps/web
+        run: |
+          pnpm install
+          npx playwright install --with-deps chromium
+
+      - name: Web - Lint & Unit
+        working-directory: apps/web
+        run: |
+          pnpm build
+          pnpm test:unit
+
+      - name: Backend - Restore & Build
+        run: |
+          dotnet restore TrustLoops.sln
+          dotnet build TrustLoops.sln -c Release --no-restore
+
+      - name: Backend - Tests
+        run: |
+          dotnet test tests/WebApp.Tests/WebApp.Tests.csproj -c Release --no-build --logger trx
+
+      - name: Start web preview (background)
+        working-directory: apps/web
+        run: |
+          pnpm preview --host --port 5173 &
+          for i in {1..30}; do
+            if curl -sSf http://localhost:5173 > /dev/null; then echo "Web is up"; break; fi
+            echo "Waiting for web..."; sleep 2;
+          done
+
+      - name: E2E - Playwright
+        working-directory: apps/web
+        env:
+          VITE_API_URL: http://localhost:5233
+        run: |
+          pnpm test:e2e
