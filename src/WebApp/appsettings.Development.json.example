@@ -1,0 +1,14 @@
+{
+  "Supabase": {
+    "Url": "",
+    "ServiceKey": "",
+    "JwtSecret": ""
+  },
+  "AllowedOrigins": [
+    "http://localhost:5173",
+    "http://localhost:5174"
+  ],
+  "LemonSqueezy": {
+    "WebhookSecret": ""
+  }
+}

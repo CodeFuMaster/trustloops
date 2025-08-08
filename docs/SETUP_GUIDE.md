@@ -43,16 +43,25 @@ cd supabase
 supabase start
 ```
 
-### 4. Start Backend Server
-```bash
-cd src/WebApp
-dotnet run --urls "http://localhost:5000"
+### 4. Quick Start (one command)
+On Windows Powershell:
+```powershell
+scripts\local-dev.ps1
 ```
 
-### 5. Start Frontend Server
-```bash
-cd apps/web
-pnpm dev
+This will:
+- Optionally start Supabase (if CLI installed)
+- Start API on http://localhost:5000
+- Start Web on http://localhost:5173
+
+### 5. Manual Start (alternative)
+Backend:
+```powershell
+cd src/WebApp; dotnet run --urls "http://localhost:5000"
+```
+Frontend:
+```powershell
+cd apps/web; pnpm dev --port 5173
 ```
 
 ## Access Points
@@ -61,6 +70,13 @@ pnpm dev
 - **Backend API**: http://localhost:5000
 - **Supabase Studio**: http://localhost:54323
 - **API Documentation**: http://localhost:5000/swagger
+
+## Environment Examples
+
+- Frontend: `apps/web/.env.local.example`
+- Backend: `src/WebApp/appsettings.Development.json.example`
+
+Copy and fill these to run locally.
 
 ## Common Issues
 
@@ -77,6 +93,9 @@ ip addr show eth0
 
 ### CORS Issues
 Ensure backend `AllowedOrigins` includes your frontend URL.
+
+### Supabase CLI not installed
+Run `scripts/local-dev.ps1 -NoSupabase` to skip DB startup.
 
 ### Authentication Issues
 1. Check Supabase configuration in both frontend and backend
