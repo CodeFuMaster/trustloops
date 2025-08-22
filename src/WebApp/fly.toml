@@ -1,0 +1,44 @@
+# Fly.io app configuration for TrustLoops API
+# Adjust `app` and `primary_region` as needed. Override app via `-a` in CI for staging.
+
+app = "trustloops-api"
+primary_region = "iad"
+
+[build]
+  dockerfile = "src/WebApp/Dockerfile"
+
+[env]
+  ASPNETCORE_URLS = "http://0.0.0.0:8080"
+  DOTNET_RUNNING_IN_CONTAINER = "true"
+  # CORS origins (array via double-underscore index)
+  AllowedOrigins__0 = "http://localhost:5173"
+  AllowedOrigins__1 = "https://staging.trustloops.app"
+  AllowedOrigins__2 = "https://trustloops.app"
+  # Logging path example (Serilog sinks if configured)
+  Serilog__WriteTo__0__Args__path = "/app/logs/webapp-.log"
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 8080
+
+  [services.concurrency]
+    type = "connections"
+    soft_limit = 25
+    hard_limit = 50
+
+  [[services.ports]]
+    handlers = ["http"]
+    port = 80
+
+  [[services.ports]]
+    handlers = ["tls", "http"]
+    port = 443
+
+  [[services.http_checks]]
+    interval = "15s"
+    timeout = "2s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/health"
+    protocol = "http"
+    tls_skip_verify = false

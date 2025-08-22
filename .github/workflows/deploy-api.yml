@@ -1,0 +1,37 @@
+name: Deploy API to Fly.io
+
+on:
+  push:
+    branches: [ main, staging ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy to Fly.io (prod or staging)
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          APP_NAME="trustloops-api"
+          if [[ "${GITHUB_REF##*/}" == "staging" ]]; then APP_NAME="trustloops-api-staging"; fi
+          flyctl deploy \
+            --config src/WebApp/fly.toml \
+            --build-arg BUILDKIT_INLINE_CACHE=1 \
+            --remote-only \
+            --app "$APP_NAME" \
+            --strategy immediate
+
+      - name: Health check
+        run: |
+          APP_HOST="api.trustloops.app"
+          if [[ "${GITHUB_REF##*/}" == "staging" ]]; then APP_HOST="staging-api.trustloops.app"; fi
+          for i in {1..30}; do
+            if curl -fsS https://$APP_HOST/health; then exit 0; fi
+            echo "waiting for health..."; sleep 5;
+          done
+          echo "API failed health check" && exit 1
