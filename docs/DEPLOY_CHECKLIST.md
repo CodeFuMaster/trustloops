@@ -41,8 +41,8 @@ This guide connects API → Fly.io, Web → Cloudflare Pages, and configures Sup
 - `AllowedOrigins` includes localhost, staging, and prod. In Fly we pass via env (see `fly.toml`).
 
 ## 6) LemonSqueezy Webhook
-- In LemonSqueezy, set webhook to: `https://api.trustloops.app/api/billing/lemonsqueezy/webhook`
-- Same for staging with staging hostname.
+- In LemonSqueezy, set webhook to: `https://api.trustloops.app/api/webhooks/lemonsqueezy`
+- Same for staging with staging hostname: `https://staging-api.trustloops.app/api/webhooks/lemonsqueezy`.
 - Secret must match `LemonSqueezy:WebhookSecret` in API.
 
 ## 7) Smoke test (staging then prod)
