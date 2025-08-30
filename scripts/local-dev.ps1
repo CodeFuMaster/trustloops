@@ -18,16 +18,14 @@ Write-Host "Starting TrustLoops local dev..." -ForegroundColor Green
 if (-not $NoSupabase) {
   if (Test-Command "supabase") {
     try {
-      Push-Location "$PSScriptRoot\..\supabase"
-      Write-Host "🟢 Starting Supabase (if not already running)..." -ForegroundColor Cyan
-      supabase start | Write-Host
+      $supabaseDir = Join-Path $PSScriptRoot "..\supabase"
+      Write-Host "Starting Supabase (if not already running)..." -ForegroundColor Cyan
+      Start-Process supabase -WorkingDirectory $supabaseDir -ArgumentList @("start") | Out-Null
     } catch {
       Write-Warning "Could not start Supabase; ensure Docker is running or pass -NoSupabase. $_"
-    } finally {
-      Pop-Location
     }
   } else {
-    Write-Host "ℹ️ Supabase CLI not found. Skipping local DB. Install from https://supabase.com/docs/guides/cli or pass -NoSupabase" -ForegroundColor Yellow
+    Write-Host "Supabase CLI not found. Skipping local DB. Install from https://supabase.com/docs/guides/cli or pass -NoSupabase" -ForegroundColor Yellow
   }
 }
 
@@ -35,7 +33,7 @@ if (-not $NoSupabase) {
 if (-not $NoBackend) {
   $backendWorkDir = Join-Path $PSScriptRoot "..\src\WebApp"
   Write-Host "Starting API on http://localhost:$ApiPort ..." -ForegroundColor Cyan
-  Start-Process powershell -WorkingDirectory $backendWorkDir -ArgumentList "-NoExit","-Command","dotnet watch run --urls 'http://localhost:$ApiPort'" | Out-Null
+  Start-Process dotnet -WorkingDirectory $backendWorkDir -ArgumentList @("watch","run","--urls","http://localhost:$ApiPort") | Out-Null
 }
 
 Start-Sleep -Seconds 2
@@ -44,7 +42,7 @@ Start-Sleep -Seconds 2
 if (-not $NoFrontend) {
   $frontendWorkDir = Join-Path $PSScriptRoot "..\apps\web"
   Write-Host "Starting Web on http://localhost:$WebPort ..." -ForegroundColor Cyan
-  Start-Process powershell -WorkingDirectory $frontendWorkDir -ArgumentList "-NoExit","-Command","pnpm dev --port $WebPort" | Out-Null
+  Start-Process pnpm -WorkingDirectory $frontendWorkDir -ArgumentList @("dev","--port","$WebPort") | Out-Null
 }
 
 Write-Host "Local dev started. API: http://localhost:$ApiPort | Web: http://localhost:$WebPort" -ForegroundColor Green
