@@ -19,13 +19,17 @@ Console.WriteLine("Adding basic services...");
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Step 2: Configure CORS
+// Step 2: Configure CORS (read from configuration/env with safe defaults)
 Console.WriteLine("Configuring CORS...");
+var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>()
+    ?? new[] { "http://localhost:5173", "http://localhost:5174", "https://staging.trustloops.app", "https://trustloops.app" };
+
+Console.WriteLine($"AllowedOrigins: {string.Join(", ", allowedOrigins)}");
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("DefaultPolicy", policy =>
     {
-        policy.WithOrigins("http://localhost:5173", "http://localhost:5174", "https://trustloops.com")
+        policy.WithOrigins(allowedOrigins)
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();

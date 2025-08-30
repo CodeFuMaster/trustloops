@@ -32,8 +32,9 @@ public static class ServiceCollectionExtensions
     services.AddHostedService<AiEnrichmentWorker>();
         
         // Register new Supabase client - re-enabled with proper error handling
-        var supabaseUrl = configuration["Supabase:Url"];
-        var supabaseKey = configuration["Supabase:ServiceKey"];
+    var supabaseUrl = configuration["Supabase:Url"];
+    // Prefer ServiceKey; fall back to AnonKey for local/dev to reduce setup friction
+    var supabaseKey = configuration["Supabase:ServiceKey"] ?? configuration["Supabase:AnonKey"];
         
         if (!string.IsNullOrEmpty(supabaseUrl) && !string.IsNullOrEmpty(supabaseKey))
         {
